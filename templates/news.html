@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ theme }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Новости - TV Box Hub</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <h1>TV Box Hub</h1>
+    <nav>
+      <ul>
+        <li><a href="/">Главная</a></li>
+        {% if session.admin %}
+          <li><a href="/admin">Админ</a></li>
+        {% endif %}
+        <li>
+          <label class="theme-switch">
+            <input type="checkbox" id="theme-toggle" {% if theme == 'light' %}checked{% endif %}>
+            <span class="slider">
+              {% if icons.light_theme.custom %}
+                <img src="/static/{{ icons.light_theme.custom }}" class="icon-preview" alt="Light Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.light_theme.emoji }}</span>
+              {% endif %}
+              {% if icons.dark_theme.custom %}
+                <img src="/static/{{ icons.dark_theme.custom }}" class="icon-preview" alt="Dark Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.dark_theme.emoji }}</span>
+              {% endif %}
+            </span>
+          </label>
+        </li>
+        <li>
+          <button id="menu-toggle" class="menu-toggle">☰</button>
+        </li>
+      </ul>
+    </nav>
+    <div class="search-container">
+      <input type="text" id="search" placeholder="Поиск..." autocomplete="off">
+      <div id="search-results" class="search-results"></div>
+    </div>
+    <div id="sidebar" class="sidebar">
+      <button id="close-sidebar" class="close-sidebar">✖</button>
+      <div class="auth-links">
+        {% if session.user %}
+          <p>Здравствуйте, рады приветствовать вас на нашем сайте, {{ session.user }}!</p>
+          <a href="/logout">Выйти</a>
+        {% else %}
+          <a href="/login">Войти</a>
+          <a href="/register">Регистрация</a>
+        {% endif %}
+      </div>
+      <h2>Категории</h2>
+      {% for category in categories %}
+        <div class="category">
+          <button class="category-toggle">{{ category.name }}</button>
+          <div class="subcategories">
+            {% for subcategory in category.subcategories %}
+              <a href="/subcategory/{{ category.name }}/{{ subcategory }}">{{ subcategory }}</a>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </header>
+  <main>
+    {% if session.admin %}
+      <section class="add-news-section">
+        <a href="/admin/add_news" class="add-news-btn">Добавить новость</a>
+      </section>
+    {% endif %}
+    <section>
+      {% for news in news_list %}
+        <article class="news-item">
+          <div class="news-header">
+            <a href="/{{ news.slug }}" class="news-link">
+              <h3>
+                {% if news.closed %}
+                  {% if icons.closed.custom %}
+                    <img src="/static/{{ icons.closed.custom }}" class="icon-preview" alt="Closed">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.closed.emoji }}</span>
+                  {% endif %}
+                {% endif %}
+                {% if news.hidden %}
+                  {% if icons.hidden.custom %}
+                    <img src="/static/{{ icons.hidden.custom }}" class="icon-preview" alt="Hidden">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.hidden.emoji }}</span>
+                  {% endif %}
+                {% endif %}
+                {{ news.title }}
+              </h3>
+            </a>
+            <span class="news-date">
+              {% if icons.date.custom %}
+                <img src="/static/{{ icons.date.custom }}" class="icon-preview" alt="Date">
+              {% else %}
+                <span class="emoji-icon">{{ icons.date.emoji }}</span>
+              {% endif %}
+              {{ news.date }}
+            </span>
+          </div>
+          <a href="/{{ news.slug }}" class="news-link">
+            <p>{{ linkify(news.content[:100]) | safe }}...</p>
+          </a>
+          {% if news.category or news.android or news.version or news.modification %}
+            <div class="news-meta">
+              {% if news.category %}
+                <p>
+                  {% if icons.category.custom %}
+                    <img src="/static/{{ icons.category.custom }}" class="icon-preview" alt="Category">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.category.emoji }}</span>
+                  {% endif %}
+                  Категория: {{ news.category }}
+                </p>
+              {% endif %}
+              {% if news.android %}
+                <p>
+                  {% if icons.android.custom %}
+                    <img src="/static/{{ icons.android.custom }}" class="icon-preview" alt="Android">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.android.emoji }}</span>
+                  {% endif %}
+                  Android: {{ news.android }}
+                </p>
+              {% endif %}
+              {% if news.version %}
+                <p>
+                  {% if icons.version.custom %}
+                    <img src="/static/{{ icons.version.custom }}" class="icon-preview" alt="Version">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.version.emoji }}</span>
+                  {% endif %}
+                  Версия: {{ news.version }}
+                </p>
+              {% endif %}
+              {% if news.modification %}
+                <p>
+                  {% if icons.modification.custom %}
+                    <img src="/static/{{ icons.modification.custom }}" class="icon-preview" alt="Modification">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.modification.emoji }}</span>
+                  {% endif %}
+                  Модификация: {{ news.modification }}
+                </p>
+              {% endif %}
+            </div>
+          {% endif %}
+          {% if news.images %}
+            {% for image in news.images %}
+              <a href="/{{ news.slug }}"><img src="/static/{{ image }}" alt="News Image" class="news-image"></a>
+            {% endfor %}
+          {% endif %}
+          <div class="likes">
+            <form action="/{{ news.slug }}/like" method="POST">
+              <button type="submit" class="like-btn" {% if news.slug|has_voted(client_ip) and news.likes > 0 %}class="voted"{% endif %}>
+                <img src="/static/images/like_icon.png" alt="Like" class="like-icon">
+                {{ news.likes }}
+              </button>
+            </form>
+            <form action="/{{ news.slug }}/dislike" method="POST">
+              <button type="submit" class="dislike-btn" {% if news.slug|has_voted(client_ip) and news.dislikes > 0 %}class="voted"{% endif %}>
+                <img src="/static/images/dislike_icon.png" alt="Dislike" class="like-icon">
+                {{ news.dislikes }}
+              </button>
+            </form>
+          </div>
+          <div class="views-container">
+            <span class="views">
+              {% if icons.views.custom %}
+                <img src="/static/{{ icons.views.custom }}" class="icon-preview" alt="Views">
+              {% else %}
+                <span class="emoji-icon">{{ icons.views.emoji }}</span>
+              {% endif %}
+              {{ news.views }}
+            </span>
+          </div>
+          {% if session.admin %}
+            <div class="news-actions">
+              <button class="settings-btn">
+                {% if icons.settings.custom %}
+                  <img src="/static/{{ icons.settings.custom }}" class="icon-preview" alt="Settings">
+                {% else %}
+                  <span class="emoji-icon">{{ icons.settings.emoji }}</span>
+                {% endif %}
+              </button>
+              <div class="dropdown-menu">
+                <a href="/admin/{{ 'open' if news.closed else 'close' }}/{{ news.slug }}">{{ 'Открыть новость' if news.closed else 'Закрыть новость' }}</a>
+                <a href="/admin/{{ 'show' if news.hidden else 'hide' }}/{{ news.slug }}">{{ 'Показать новость' if news.hidden else 'Скрыть новость' }}</a>
+              </div>
+            </div>
+            <div class="admin-actions">
+              <a href="/admin/edit/{{ news.slug }}">Редактировать</a>
+              <a href="/admin/delete/{{ news.slug }}">Удалить</a>
+            </div>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </section>
+  </main>
+  <footer>
+    <p>© 2025 TV Box Hub</p>
+  </footer>
+  <script src="/static/script.js"></script>
+</body>
+</html>

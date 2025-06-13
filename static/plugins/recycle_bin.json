@@ -1,0 +1,136 @@
+[
+  {
+    "type": "news",
+    "data": {
+      "title": "09888",
+      "slug": "09888",
+      "category": "",
+      "subcategory": "",
+      "android": "",
+      "version": "",
+      "modification": "",
+      "content": "Ттть",
+      "full_description": "",
+      "date": "27.05.2025",
+      "images": [
+        "uploads/1000055076.jpg"
+      ],
+      "likes": 0,
+      "dislikes": 0,
+      "views": 1,
+      "closed": false,
+      "hidden": false
+    },
+    "deleted_by": "admin",
+    "date_deleted": "27.05.2025 23:00",
+    "origin": "admin"
+  },
+  {
+    "type": "news",
+    "data": {
+      "title": "Без",
+      "slug": "bez",
+      "category": "",
+      "subcategory": "",
+      "android": "",
+      "version": "",
+      "modification": "",
+      "content": "Без",
+      "full_description": "",
+      "date": "27.05.2025",
+      "images": [],
+      "likes": 0,
+      "dislikes": 0,
+      "views": 0,
+      "closed": false,
+      "hidden": false
+    },
+    "deleted_by": "admin",
+    "date_deleted": "27.05.2025 23:08",
+    "origin": "admin"
+  },
+  {
+    "type": "news",
+    "data": {
+      "title": "000000",
+      "slug": "000000",
+      "category": "Технологии",
+      "subcategory": "",
+      "android": "Лло",
+      "version": "Ннн",
+      "modification": "Рнн",
+      "content": "Тттт",
+      "full_description": "",
+      "date": "27.05.2025",
+      "images": [],
+      "likes": 0,
+      "dislikes": 0,
+      "views": 1,
+      "closed": false,
+      "hidden": false
+    },
+    "deleted_by": "admin",
+    "date_deleted": "27.05.2025 23:13",
+    "origin": "admin"
+  },
+  {
+    "type": "news",
+    "data": {
+      "title": "8888",
+      "slug": "8888",
+      "category": "Технологии",
+      "subcategory": "",
+      "android": "Hhh",
+      "version": "Тттт",
+      "modification": "Лоооо",
+      "content": "6гг",
+      "full_description": "Иииии",
+      "date": " Обновлено: 29.05.2025 14:31",
+      "images": [
+        "uploads/1000056526.jpg"
+      ],
+      "likes": 0,
+      "dislikes": 0,
+      "views": 103,
+      "closed": false,
+      "hidden": false,
+      "hide_category": true,
+      "hide_android": true,
+      "hide_version": true,
+      "hide_modification": true,
+      "attachment_images": [
+        "73f9866ff22d4434aed97dcd52d5320d_1000054987.png"
+      ],
+      "screenshots": [
+        "uploads/1000056526.jpg",
+        "uploads/1000056533.png",
+        "uploads/1000056520.jpg",
+        "uploads/1000056524.jpg"
+      ],
+      "attachments": [
+        {
+          "path": "uploads/language-russian-xf.zip",
+          "filename": "language-russian-xf.zip"
+        }
+      ]
+    },
+    "deleted_by": "admin",
+    "date_deleted": "29.05.2025 14:48",
+    "origin": "admin"
+  },
+  {
+    "type": "comment",
+    "data": {
+      "id": 58,
+      "slug": "hdrezka-tv",
+      "user": "testuser",
+      "content": "Привет ",
+      "date": "03.06.2025 14:50",
+      "parent_id": null,
+      "edited": false
+    },
+    "deleted_by": "admin",
+    "date_deleted": "04.06.2025 14:48",
+    "origin": "news/hdrezka-tv (HDRezka TV )"
+  }
+]

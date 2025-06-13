@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ theme }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TV BOX HUB</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    section {
+      max-width: 1200px;
+      margin: 0 auto;
+      box-sizing: border-box;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .news-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      box-sizing: border-box;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .news-item {
+      display: inline-block;
+      width: 100%;
+      margin: 15px;
+      padding: 0;
+      background: #f0f0f0;
+      border-radius: 10px;
+      box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
+      vertical-align: top;
+      transition: transform 0.2s, box-shadow 0.2s;
+      cursor: pointer;
+      box-sizing: border-box;
+      overflow: hidden;
+      position: relative;
+    }
+    .news-item:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 12px 25px rgba(0, 0, 0, 0.5);
+    }
+    [data-theme="dark"] .news-item {
+      background: #444;
+      box-shadow: 0 8px 20px rgba(255, 255, 255, 0.1);
+    }
+    [data-theme="dark"] .news-item:hover {
+      box-shadow: 0 12px 30px rgba(255, 255, 255, 0.2);
+    }
+    .news-item .news-image {
+      width: 100%;
+      height: auto;
+      object-fit: cover;
+      border-radius: 10px 10px 0 0;
+      margin: 0;
+      padding: 0;
+      display: block;
+      box-sizing: border-box;
+    }
+    .news-item .news-header {
+      margin: 10px 20px 0 20px;
+    }
+    .news-item .news-header h3 {
+      font-size: 1.2em;
+      margin: 0;
+    }
+    .news-item .news-header h3 a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .news-item .news-link p {
+      font-size: 0.95em;
+      margin: 5px 20px 10px 20px;
+    }
+    .news-meta {
+      color: #d3d3d3;
+      margin: 0 20px 10px 20px;
+      text-align: left;
+    }
+    [data-theme="light"] .news-meta p {
+      color: #666666;
+    }
+    .image-meta {
+      position: absolute;
+      top: 5px;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+    .image-meta .category-label,
+    .image-meta .android-label,
+    .image-meta .date-label {
+      font-size: 0.85em;
+      color: #fff;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 5px 10px;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .image-meta .date-label {
+      font-size: 0.75em;
+      padding: 4px 8px;
+      flex-grow: 0;
+    }
+    .image-meta img,
+    .image-meta span {
+      width: 16px;
+      height: 16px;
+    }
+    @media (max-width: 600px) {
+      .news-item {
+        width: 100%;
+        margin: 15px 0;
+      }
+      .image-meta {
+        top: 3px;
+      }
+      .image-meta .category-label,
+      .image-meta .android-label,
+      .image-meta .date-label {
+        font-size: 0.7em;
+        padding: 3px 6px;
+      }
+      .image-meta img,
+      .image-meta span {
+        width: 14px;
+        height: 14px;
+      }
+    }
+    .news-actions .dropdown-menu {
+      display: none;
+      position: absolute;
+      top: -118px;
+      right: 0;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      z-index: 1000;
+      min-width: 150px;
+      color: #000;
+    }
+    [data-theme="dark"] .news-actions .dropdown-menu {
+      background: #333;
+      color: #fff;
+    }
+    .news-actions:hover .dropdown-menu {
+      display: block;
+    }
+    .news-actions .dropdown-menu a {
+      display: block;
+      padding: 8px 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .news-actions .dropdown-menu a:hover {
+      background: rgba(0, 0, 0, 0.1);
+    }
+    [data-theme="dark"] .news-actions .dropdown-menu a:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    .pinned-news-container {
+      max-width: 1200px;
+      margin: 20px auto;
+      overflow-x: auto;
+      white-space: nowrap;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 10px;
+      -webkit-overflow-scrolling: touch;
+      scroll-behavior: smooth; /* Плавная прокрутка */
+    }
+    .pinned-news-scroll {
+      display: flex;
+      gap: 10px;
+      padding: 0 30px;
+      min-width: 0; /* Убираем минимальную ширину, чтобы прокрутка работала */
+    }
+    .pinned-item .news-image {
+      height: 120px;
+      object-fit: cover;
+    }
+    .pinned-item {
+      vertical-align: top;
+      background: #e0e0e0;
+      border: 2px solid #4CAF50;
+      min-width: 250px;
+      width: 250px;
+    }
+    [data-theme="dark"] .pinned-item {
+      background: #555;
+      border-color: #4CAF50;
+    }
+    .no-image {
+      height: 120px;
+      background: #ddd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px 10px 0 0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TV BOX HUB</h1>
+    <nav>
+      <ul>
+        <li><a href="/">Главная</a></li>
+        {% if session.admin %}
+          <li><a href="/admin">Админ</a></li>
+          <li><a href="/recycle_bin">Корзина</a></li>
+        {% endif %}
+        <li>
+          <label class="theme-switch">
+            <input type="checkbox" id="theme-toggle" {% if theme == 'light' %}checked{% endif %}>
+            <span class="slider">
+              {% if icons.get('light_theme', {}).get('custom') %}
+                <img src="/static/{{ icons.get('light_theme').get('custom') }}" class="icon-preview" alt="Light Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.get('light_theme', {}).get('emoji', '☀️') }}</span>
+              {% endif %}
+              {% if icons.get('dark_theme', {}).get('custom') %}
+                <img src="/static/{{ icons.get('dark_theme').get('custom') }}" class="icon-preview" alt="Dark Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.get('dark_theme', {}).get('emoji', '🌙') }}</span>
+              {% endif %}
+            </span>
+          </label>
+        </li>
+        <li>
+          <button id="menu-toggle" class="menu-toggle">☰</button>
+        </li>
+      </ul>
+    </nav>
+    <div class="search-container">
+      <input type="text" id="search" placeholder="Поиск..." autocomplete="off">
+      <div id="search-results" class="search-results"></div>
+    </div>
+    <div id="sidebar" class="sidebar">
+      <button id="close-sidebar" class="close-sidebar">✖</button>
+      <div class="auth-links">
+        {% if session.user %}
+          <p>Здравствуйте, рады приветствовать вас на нашем сайте, {{ session.user }}!</p>
+          <a href="/logout">Выйти</a>
+        {% else %}
+          <a href="/login">Войти</a>
+          <a href="/register">Регистрация</a>
+        {% endif %}
+      </div>
+      <h2>Категории</h2>
+      {% for category in categories %}
+        <div class="category">
+          <button class="category-toggle">{{ category.name }}</button>
+          <div class="subcategories">
+            {% for subcategory in category.subcategories %}
+              <a href="/subcategory/{{ category.name }}/{{ subcategory }}">{{ subcategory }}</a>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </header>
+  <main>
+    {% if session.admin %}
+      <section class="add-news-section">
+        <a href="/admin/add_news" class="add-news-btn">Создать пост</a>
+      </section>
+    {% endif %}
+    <section class="pinned-news-container">
+      {% if pinned_news %}
+        <h2 style="animation: none;">Закрепленные новости</h2>
+        <div class="pinned-news-scroll">
+          {% for news in pinned_news %}
+            <article class="news-item pinned-item" style="display: inline-block; margin: 10px;">
+              {% if news.images and news.images|length > 0 %}
+                <a href="/{{ news.slug }}"><img src="/static/{{ news.images[0] }}" alt="Pinned News" class="news-image"></a>
+              {% else %}
+                <a href="/{{ news.slug }}"><div class="no-image">Нет изображения</div></a>
+              {% endif %}
+              <div class="news-header">
+                <a href="/{{ news.slug }}"><h3>{{ news.title }}</h3></a>
+              </div>
+              <a href="/{{ news.slug }}" class="news-link"><p>{{ news.content[:50] }}...</p></a>
+            </article>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+    <section class="news-container">
+      {% for news in news_list %}
+        <article class="news-item" style="display: inline-block;">
+          {% if news.images %}
+            {% for image in news.images %}
+              <a href="/{{ news.slug }}"><img src="/static/{{ image }}" alt="News Image" class="news-image"></a>
+              <div class="image-meta">
+                {% if news.category %}
+                  <div class="category-label">
+                    {% if icons.get('category', {}).get('custom') %}
+                      <img src="/static/{{ icons.get('category').get('custom') }}" alt="Category">
+                    {% else %}
+                      <span class="emoji-icon">{{ icons.get('category', {}).get('emoji', '📁') }}</span>
+                    {% endif %}
+                    {{ news.category }}
+                  </div>
+                {% else %}
+                  <div class="category-label" style="visibility: hidden;"></div>
+                {% endif %}
+                <div class="date-label">
+                  {% if icons.get('date', {}).get('custom') %}
+                    <img src="/static/{{ icons.get('date').get('custom') }}" class="icon-preview" alt="Date">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.get('date', {}).get('emoji', '🗓️') }}</span>
+                  {% endif %}
+                  {{ news.date }}
+                </div>
+                {% if news.android %}
+                  <div class="android-label">
+                    {% if icons.get('android', {}).get('custom') %}
+                      <img src="/static/{{ icons.get('android').get('custom') }}" alt="Android">
+                    {% else %}
+                      <span class="emoji-icon">{{ icons.get('android', {}).get('emoji', '🤖') }}</span>
+                    {% endif %}
+                    {{ news.android }}
+                  </div>
+                {% else %}
+                  <div class="android-label" style="visibility: hidden;"></div>
+                {% endif %}
+              </div>
+            {% endfor %}
+          {% endif %}
+          <div class="news-header">
+            <a href="/{{ news.slug }}" class="news-link">
+              <h3>
+                {% if news.closed %}
+                  {% if icons.get('closed', {}).get('custom') %}
+                    <img src="/static/{{ icons.get('closed').get('custom') }}" class="icon-preview" alt="Closed">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.get('closed', {}).get('emoji', '🔒') }}</span>
+                  {% endif %}
+                {% endif %}
+                {% if news.hidden %}
+                  {% if icons.get('hidden', {}).get('custom') %}
+                    <img src="/static/{{ icons.get('hidden').get('custom') }}" class="icon-preview" alt="Hidden">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.get('hidden', {}).get('emoji', '🕶️') }}</span>
+                  {% endif %}
+                {% endif %}
+                {{ news.title }}
+              </h3>
+            </a>
+          </div>
+          <a href="/{{ news.slug }}" class="news-link">
+            <p>{{ linkify(news.content[:100]) | safe }}...</p>
+          </a>
+          {% if news.version or news.modification %}
+            <div class="news-meta">
+              {% if news.version %}
+                <p>
+                  {% if icons.get('version', {}).get('custom') %}
+                    <img src="/static/{{ icons.get('version').get('custom') }}" class="icon-preview" alt="Version">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.get('version', {}).get('emoji', '🆔') }}</span>
+                  {% endif %}
+                  Версия: {{ news.version }}
+                </p>
+              {% endif %}
+              {% if news.modification %}
+                <p>
+                  {% if icons.get('modification', {}).get('custom') %}
+                    <img src="/static/{{ icons.get('modification').get('custom') }}" class="icon-preview" alt="Modification">
+                  {% else %}
+                    <span class="emoji-icon">{{ icons.get('modification', {}).get('emoji', '🔑') }}</span>
+                  {% endif %}
+                  Модификация: {{ news.modification }}
+                </p>
+              {% endif %}
+            </div>
+          {% endif %}
+          <div class="likes">
+            <form action="/{{ news.slug }}/like" method="POST">
+              <button type="submit" class="like-btn" {% if news.slug|has_voted(client_ip) and news.likes > 0 %}class="voted"{% endif %}>
+                <img src="/static/images/like_icon.png" alt="Like" class="like-icon">
+                {{ news.likes }}
+              </button>
+            </form>
+            <form action="/{{ news.slug }}/dislike" method="POST">
+              <button type="submit" class="dislike-btn" {% if news.slug|has_voted(client_ip) and news.dislikes > 0 %}class="voted"{% endif %}>
+                <img src="/static/images/dislike_icon.png" alt="Dislike" class="like-icon">
+                {{ news.dislikes }}
+              </button>
+            </form>
+          </div>
+          <div class="views-container">
+            <span class="views">
+              {% if icons.get('views', {}).get('custom') %}
+                <img src="/static/{{ icons.get('views').get('custom') }}" class="icon-preview" alt="Views">
+              {% else %}
+                <span class="emoji-icon">{{ icons.get('views', {}).get('emoji', '👁️') }}</span>
+              {% endif %}
+              {{ news.views }}
+            </span>
+          </div>
+          {% if session.admin %}
+            <div class="news-actions">
+              <button class="settings-btn">
+                {% if icons.get('settings', {}).get('custom') %}
+                  <img src="/static/{{ icons.get('settings').get('custom') }}" class="icon-preview" alt="Settings">
+                {% else %}
+                  <span class="emoji-icon">{{ icons.get('settings', {}).get('emoji', '⚙️') }}</span>
+                {% endif %}
+              </button>
+              <div class="dropdown-menu">
+                <a href="/admin/{{ 'open' if news.closed else 'close' }}/{{ news.slug }}">{{ 'Открыть пост' if news.closed else 'Закрыть пост' }}</a>
+                <a href="/admin/{{ 'show' if news.hidden else 'hide' }}/{{ news.slug }}">{{ 'Показать пост' if news.hidden else 'Скрыть пост' }}</a>
+                <a href="/admin/toggle_pin/{{ news.slug }}">{{ 'Открепить' if news.slug in settings.get('pinned_slugs', []) else 'Закрепить' }}</a>
+              </div>
+            </div>
+            <div class="admin-actions">
+              <a href="/admin/edit/{{ news.slug }}">Редактировать</a>
+              <a href="/admin/delete/{{ news.slug }}">Удалить</a>
+            </div>
+          {% endif %}
+        </article>
+      {% endfor %}
+    </section>
+  </main>
+  <footer>
+    <p>© 2025 TV Box Hub</p>
+  </footer>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.news-item').forEach(function(item) {
+        item.addEventListener('click', function(event) {
+          if (!event.target.closest('.like-btn, .dislike-btn, .news-actions, .admin-actions')) {
+            const link = item.querySelector('.news-link');
+            if (link) {
+              const sessionId = document.cookie.match(new RegExp('(^| )PHPSESSID=([^;]+)'));
+              if (sessionId) {
+                fetch('/save-session', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ sessionId: sessionId[2] })
+                });
+              }
+              window.location.href = link.getAttribute('href');
+            }
+          }
+        });
+      });
+
+      const themeToggle = document.getElementById('theme-toggle');
+      if (themeToggle) {
+        themeToggle.addEventListener('change', function() {
+          const sessionId = document.cookie.match(new RegExp('(^| )PHPSESSID=([^;]+)'));
+          if (sessionId) {
+            fetch('/save-theme', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sessionId: sessionId[2], theme: this.checked ? 'light' : 'dark' })
+            });
+          }
+        });
+      }
+    });
+  </script>
+  <script src="/static/script.js"></script>
+</body>
+</html>

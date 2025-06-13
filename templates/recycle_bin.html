@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ theme }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Корзина - TV Box Hub</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  {{ block_styles | safe }}
+</head>
+<body>
+  <header>
+    <h1>TV Box Hub</h1>
+    <nav>
+      <ul>
+        <li><a href="/">Главная</a></li>
+        {% if session.admin %}
+          <li><a href="/admin">Админ</a></li>
+          <li><a href="/recycle_bin">Корзина</a></li>
+        {% endif %}
+        <li>
+          <label class="theme-switch">
+            <input type="checkbox" id="theme-toggle" {% if theme == 'light' %}checked{% endif %}>
+            <span class="slider">
+              {% if icons.get('light_theme', {}).get('custom') %}
+                <img src="/static/{{ icons.get('light_theme').get('custom') }}" class="icon-preview" alt="Light Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.get('light_theme', {}).get('emoji', '☀️') }}</span>
+              {% endif %}
+              {% if icons.get('dark_theme', {}).get('custom') %}
+                <img src="/static/{{ icons.get('dark_theme').get('custom') }}" class="icon-preview" alt="Dark Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.get('dark_theme', {}).get('emoji', '🌙') }}</span>
+              {% endif %}
+            </span>
+          </label>
+        </li>
+        <li>
+          <button id="menu-toggle" class="menu-toggle">☰</button>
+        </li>
+      </ul>
+    </nav>
+    <div class="search-container">
+      <input type="text" id="search" placeholder="Поиск..." autocomplete="off">
+      <div id="search-results" class="search-results"></div>
+    </div>
+    <div id="sidebar" class="sidebar">
+      <button id="close-sidebar" class="close-sidebar">✖</button>
+      <div class="auth-links">
+        {% if session.user %}
+          <p>Здравствуйте, рады приветствовать вас на нашем сайте, {{ session.user }}!</p>
+          <a href="/logout">Выйти</a>
+        {% else %}
+          <a href="/login">Войти</a>
+          <a href="/register">Регистрация</a>
+        {% endif %}
+      </div>
+      <h2>Категории</h2>
+      {% for category in categories %}
+        <div class="category">
+          <button class="category-toggle">{{ category.name }}</button>
+          <div class="subcategories">
+            {% for subcategory in category.subcategories %}
+              <a href="/subcategory/{{ category.name }}/{{ subcategory }}">{{ subcategory }}</a>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </header>
+  <main>
+    <section>
+      <h2>Корзина</h2>
+      <div style="margin-bottom: 20px;">
+        <input type="text" id="recycle-search" placeholder="Поиск по корзине..." autocomplete="off" style="padding: 5px; width: 300px;">
+      </div>
+      {% if recycle_bin %}
+        <ul id="recycle-list" style="list-style: none; padding: 0;">
+          {% for item in recycle_bin %}
+            <li class="recycle-item" style="margin-bottom: 10px; padding: 10px; border: 1px solid #ccc;" data-title="{{ item.data.title | default('') }}" data-content="{{ item.data.content | default('') }}">
+              {% if item.type == 'news' %}
+                <strong>Новость:</strong> {{ item.data.title }} (Удалено: {{ item.date_deleted }} кем: {{ item.deleted_by }})
+              {% else %}
+                <strong>Комментарий:</strong> {{ item.data.content[:50] }}... (Удалено: {{ item.date_deleted }} кем: {{ item.deleted_by }}, из: {{ item.origin }})
+              {% endif %}
+              <form method="POST" action="/recycle_bin/action" style="display:inline;">
+                <input type="hidden" name="id" value="{{ loop.index0 }}">
+                <input type="hidden" name="action" value="restore">
+                <button type="submit" style="margin-left: 10px;">Восстановить</button>
+              </form>
+              <form method="POST" action="/recycle_bin/action" style="display:inline;">
+                <input type="hidden" name="id" value="{{ loop.index0 }}">
+                <input type="hidden" name="action" value="delete">
+                <button type="submit" style="margin-left: 10px;" onclick="return confirm('Удалить окончательно?')">Удалить</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p id="recycle-empty">Корзина пуста.</p>
+      {% endif %}
+    </section>
+  </main>
+  <footer>
+    <p>© 2025 TV Box Hub</p>
+  </footer>
+  <script src="/static/script.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchInput = document.getElementById('recycle-search');
+      const recycleList = document.getElementById('recycle-list');
+      const emptyMessage = document.getElementById('recycle-empty');
+      const items = recycleList ? Array.from(document.getElementsByClassName('recycle-item')) : [];
+
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          const query = searchInput.value.toLowerCase().trim();
+          let visibleItems = 0;
+
+          if (items.length > 0) {
+            items.forEach(item => {
+              const title = item.getAttribute('data-title').toLowerCase();
+              const content = item.getAttribute('data-content').toLowerCase();
+              const matches = title.includes(query) || content.includes(query);
+              item.style.display = matches ? '' : 'none';
+              if (matches) visibleItems++;
+            });
+
+            if (emptyMessage) {
+              emptyMessage.style.display = visibleItems > 0 ? 'none' : 'block';
+              if (visibleItems === 0 && query) {
+                emptyMessage.textContent = 'Ничего не найдено.';
+              } else if (visibleItems === 0) {
+                emptyMessage.textContent = 'Корзина пуста.';
+              }
+            }
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>

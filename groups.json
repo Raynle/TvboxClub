@@ -1,0 +1,69 @@
+[
+  {
+    "name": "Админ",
+    "color": "#ff0000",
+    "permissions": {
+      "add_news": true,
+      "delete_news": true,
+      "edit_news": true,
+      "add_admins": true,
+      "manage_groups": true,
+      "manage_users": true,
+      "is_admin": true
+    }
+  },
+  {
+    "name": "Premium",
+    "color": "#ffd700",
+    "permissions": {
+      "add_news": false,
+      "delete_news": false,
+      "edit_news": false,
+      "add_admins": false,
+      "manage_groups": false,
+      "manage_users": false,
+      "is_admin": false
+    }
+  },
+  {
+    "name": "Пользователь",
+    "color": "#00ff00",
+    "permissions": {
+      "add_news": false,
+      "delete_news": false,
+      "edit_news": false,
+      "add_admins": false,
+      "manage_groups": false,
+      "manage_users": false,
+      "is_admin": false
+    }
+  },
+  {
+    "name": "Забанен",
+    "color": "#707070",
+    "permissions": {
+      "add_news": false,
+      "delete_news": false,
+      "edit_news": false,
+      "add_admins": false,
+      "manage_groups": false,
+      "manage_users": false,
+      "is_admin": false
+    },
+    "can_comment": false
+  },
+  {
+    "name": "Модератор",
+    "color": "#4aa4ff",
+    "can_comment": true,
+    "permissions": {
+      "add_news": false,
+      "delete_news": false,
+      "edit_news": false,
+      "add_admins": false,
+      "manage_groups": false,
+      "manage_users": false,
+      "is_admin": false
+    }
+  }
+]

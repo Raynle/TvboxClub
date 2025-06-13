@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Новости Портала",
+    "subcategories": []
+  },
+  {
+    "name": "Для Android TV",
+    "subcategories": [
+      "Фильмы/Сериалы"
+    ]
+  }
+]

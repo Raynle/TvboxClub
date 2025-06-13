@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ theme }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Редактировать новость - TV Box Hub</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    .image-wrapper, .preview-image-wrapper {
+      position: relative;
+      display: inline-block;
+      margin: 5px;
+    }
+    .news-image, .screenshot-image {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+    }
+    .preview-image {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+      margin: 5px;
+    }
+    .remove-image-btn, .remove-preview-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: rgba(255, 0, 0, 0.7);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 14px;
+      line-height: 20px;
+      cursor: pointer;
+      text-align: center;
+      padding: 0;
+    }
+    .remove-image-btn:hover, .remove-preview-btn:hover {
+      background: rgba(255, 0, 0, 1);
+    }
+    .progress-container {
+      display: none;
+      margin: 10px 0;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 20px;
+      background: #f0f0f0;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .progress {
+      height: 100%;
+      background: #4CAF50;
+      width: 0;
+      text-align: center;
+      color: white;
+      line-height: 20px;
+    }
+    .attachment-wrapper, .preview-attachment-wrapper {
+      position: relative;
+      display: inline-block;
+      margin: 5px;
+    }
+    .remove-attachment-btn, .remove-preview-attachment-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: rgba(255, 0, 0, 0.7);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      font-size: 14px;
+      line-height: 20px;
+      cursor: pointer;
+      text-align: center;
+      padding: 0;
+    }
+    .remove-attachment-btn:hover, .remove-preview-attachment-btn:hover {
+      background: rgba(255, 0, 0, 1);
+    }
+    .custom-file-button {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .custom-file-button:hover {
+      background-color: #0056b3;
+    }
+    .custom-file-input {
+      display: none;
+    }
+    .preview-container {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TV Box Hub</h1>
+    <nav>
+      <ul>
+        <li><a href="/">Главная</a></li>
+        {% if session.admin %}
+          <li><a href="/admin">Админ</a></li>
+        {% endif %}
+        <li>
+          <label class="theme-switch">
+            <input type="checkbox" id="theme-toggle" {% if theme == 'light' %}checked{% endif %}>
+            <span class="slider">
+              {% if icons.light_theme.custom %}
+                <img src="/static/{{ icons.light_theme.custom }}" class="icon-preview" alt="Light Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.light_theme.emoji }}</span>
+              {% endif %}
+              {% if icons.dark_theme.custom %}
+                <img src="/static/{{ icons.dark_theme.custom }}" class="icon-preview" alt="Dark Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.dark_theme.emoji }}</span>
+              {% endif %}
+            </span>
+          </label>
+        </li>
+        <li>
+          <button id="menu-toggle" class="menu-toggle">☰</button>
+        </li>
+      </ul>
+    </nav>
+    <div class="search-container">
+      <input type="text" id="search" placeholder="Поиск..." autocomplete="off">
+      <div id="search-results" class="search-results"></div>
+    </div>
+    <div id="sidebar" class="sidebar">
+      <button id="close-sidebar" class="close-sidebar">✖</button>
+      <div class="auth-links">
+        {% if session.user %}
+          <p>Здравствуйте, рады приветствовать вас на нашем сайте, {{ session.user }}!</p>
+          <a href="/logout">Выйти</a>
+        {% else %}
+          <a href="/login">Войти</a>
+          <a href="/register">Регистрация</a>
+        {% endif %}
+      </div>
+      <h2>Категории</h2>
+      {% for category in categories %}
+        <div class="category">
+          <button class="category-toggle">{{ category.name }}</button>
+          <div class="subcategories">
+            {% for subcategory in category.subcategories %}
+              <a href="/subcategory/{{ category.name }}/{{ subcategory }}">{{ subcategory }}</a>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </header>
+  <main>
+    <section>
+      {% if news.images %}
+        <h3>Текущие изображения</h3>
+        {% for image in news.images %}
+          <div class="image-wrapper">
+            <img src="/static/{{ image }}" alt="News Image" class="news-image">
+            {% if session.admin %}
+              <button class="remove-image-btn" onclick="removeImage('{{ image }}', '{{ news.slug }}')">✖</button>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% endif %}
+      <h2>Редактировать новость</h2>
+      <form method="POST" enctype="multipart/form-data" id="edit-form">
+        <!-- Поле для изображений с окном загрузки -->
+        <div class="progress-container" id="images-progress">
+          <div class="progress-bar">
+            <div class="progress" id="images-progress-bar">0%</div>
+          </div>
+        </div>
+        <input type="file" name="images" multiple accept="image/*" id="images-input" class="custom-file-input" onchange="uploadProgress('images-input', 'images-progress-bar'); previewImages('images-input', 'images-preview')">
+        <label for="images-input" class="custom-file-button">Добавить изображения</label>
+        <div id="images-preview" class="preview-container"></div>
+
+        <input type="text" name="title" value="{{ news.title }}" required>
+        <select name="category" id="category-select">
+          <option value="">Выберите категорию</option>
+          {% for category in categories %}
+            <option value="{{ category.name }}" {% if news.category == category.name %}selected{% endif %}>{{ category.name }}</option>
+          {% endfor %}
+        </select>
+        <select name="subcategory" id="subcategory-select">
+          <option value="">Выберите подкатегорию</option>
+          {% if news.subcategory %}
+            <option value="{{ news.subcategory }}" selected>{{ news.subcategory }}</option>
+          {% endif %}
+        </select>
+        <input type="text" name="android" value="{{ news.android }}" placeholder="Android">
+        <input type="text" name="version" value="{{ news.version }}" placeholder="Версия">
+        <input type="text" name="modification" value="{{ news.modification }}" placeholder="Модификация">
+        <textarea name="content" required>{{ news.content }}</textarea>
+        <textarea name="full_description">{{ news.full_description }}</textarea>
+        <!-- Поле для скриншотов с окном загрузки -->
+        <div class="progress-container" id="screenshots-progress">
+          <div class="progress-bar">
+            <div class="progress" id="screenshots-progress-bar">0%</div>
+          </div>
+        </div>
+        <input type="file" name="screenshots" id="screenshots-input" class="custom-file-input" multiple accept="image/*" onchange="uploadProgress('screenshots-input', 'screenshots-progress-bar'); previewImages('screenshots-input', 'screenshots-preview')">
+        <label for="screenshots-input" class="custom-file-button">Добавить скриншоты</label>
+        <div id="screenshots-preview" class="preview-container"></div>
+        <!-- Поле для вложений с окном загрузки -->
+        <div class="progress-container" id="attachments-progress">
+          <div class="progress-bar">
+            <div class="progress" id="attachments-progress-bar">0%</div>
+          </div>
+        </div>
+        <input type="file" name="attachments" id="attachments-input" class="custom-file-input" multiple onchange="uploadProgress('attachments-input', 'attachments-progress-bar'); previewAttachments('attachments-input', 'attachments-preview')">
+        <label for="attachments-input" class="custom-file-button">Добавить вложения</label>
+        <div id="attachments-preview" class="preview-container"></div>
+        <button type="submit">Сохранить</button>
+      </form>
+      {% if news.attachments %}
+        <h3>Текущие вложения</h3>
+        <div class="attachments">
+          {% for attachment in news.attachments %}
+            <div class="attachment-wrapper">
+              <a href="/download/{{ attachment.path }}">{{ attachment.filename }}</a>
+              {% if session.admin %}
+                <button class="remove-attachment-btn" onclick="removeAttachment('{{ attachment.path }}', '{{ news.slug }}')">✖</button>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      {% if news.screenshots %}
+        <h3>Текущие скриншоты</h3>
+        <div class="screenshots">
+          {% for screenshot in news.screenshots %}
+            <div class="image-wrapper">
+              <img src="/static/{{ screenshot }}" alt="Screenshot" class="screenshot-image">
+              {% if session.admin %}
+                <button class="remove-image-btn" onclick="removeImage('{{ screenshot }}', '{{ news.slug }}')">✖</button>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <a href="/admin" class="admin-logout">Назад</a>
+    </section>
+  </main>
+  <footer>
+    <p>© 2025 TV Box Hub</p>
+  </footer>
+  <script src="/static/script.js"></script>
+  <script>
+    const categorySelect = document.getElementById('category-select');
+    const subcategorySelect = document.getElementById('subcategory-select');
+
+    if (categorySelect && subcategorySelect) {
+      categorySelect.addEventListener('change', async () => {
+        const category = categorySelect.value;
+        subcategorySelect.innerHTML = '<option value="">Выберите подкатегорию</option>';
+        if (category) {
+          const response = await fetch('/get_subcategories', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `category=${encodeURIComponent(category)}`
+          });
+          const subcategories = await response.json();
+          subcategories.forEach(sub => {
+            const option = document.createElement('option');
+            option.value = sub;
+            option.textContent = sub;
+            if (sub === '{{ news.subcategory }}') option.selected = true;
+            subcategorySelect.appendChild(option);
+          });
+        }
+      });
+
+      categorySelect.dispatchEvent(new Event('change'));
+    }
+
+    // Функция для показа прогресса загрузки
+    function uploadProgress(inputId, progressBarId) {
+      const input = document.getElementById(inputId);
+      const progressBar = document.getElementById(progressBarId);
+      const progressContainer = document.getElementById(inputId.replace('-input', '-progress'));
+      
+      if (input.files.length > 0) {
+        progressContainer.style.display = 'block';
+        const totalSize = Array.from(input.files).reduce((sum, file) => sum + file.size, 0);
+        let loadedSize = 0;
+
+        const simulateUpload = setInterval(() => {
+          loadedSize += totalSize * 0.1; // Симуляция загрузки (10% за раз)
+          const percentage = Math.min((loadedSize / totalSize) * 100, 100);
+          progressBar.style.width = percentage + '%';
+          progressBar.textContent = Math.round(percentage) + '%';
+
+          if (percentage >= 100) {
+            clearInterval(simulateUpload);
+            progressContainer.style.display = 'none';
+          }
+        }, 500);
+      }
+    }
+
+    // Предварительный просмотр изображений и скриншотов
+    function previewImages(inputId, previewId) {
+      const input = document.getElementById(inputId);
+      const preview = document.getElementById(previewId);
+      preview.innerHTML = ''; // Очищаем предыдущий предпросмотр
+
+      Array.from(input.files).forEach((file, index) => {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'preview-image-wrapper';
+
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.className = 'preview-image';
+            wrapper.appendChild(img);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-preview-btn';
+            removeBtn.innerHTML = '✖';
+            removeBtn.onclick = function () {
+              wrapper.remove();
+              // Удаляем файл из input
+              const newFiles = Array.from(input.files).filter((_, i) => i !== index);
+              const dataTransfer = new DataTransfer();
+              newFiles.forEach(file => dataTransfer.items.add(file));
+              input.files = dataTransfer.files;
+            };
+            wrapper.appendChild(removeBtn);
+
+            preview.appendChild(wrapper);
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    // Предварительный просмотр вложений
+    function previewAttachments(inputId, previewId) {
+      const input = document.getElementById(inputId);
+      const preview = document.getElementById(previewId);
+      preview.innerHTML = ''; // Очищаем предыдущий предпросмотр
+
+      Array.from(input.files).forEach((file, index) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'preview-attachment-wrapper';
+
+        const link = document.createElement('span');
+        link.textContent = file.name;
+        wrapper.appendChild(link);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-preview-attachment-btn';
+        removeBtn.innerHTML = '✖';
+        removeBtn.onclick = function () {
+          wrapper.remove();
+          // Удаляем файл из input
+          const newFiles = Array.from(input.files).filter((_, i) => i !== index);
+          const dataTransfer = new DataTransfer();
+          newFiles.forEach(file => dataTransfer.items.add(file));
+          input.files = dataTransfer.files;
+        };
+        wrapper.appendChild(removeBtn);
+
+        preview.appendChild(wrapper);
+      });
+    }
+
+    // Функция для удаления существующих изображений и скриншотов
+    function removeImage(imagePath, slug) {
+      if (!confirm('Вы уверены, что хотите удалить это изображение?')) return;
+      console.log('Попытка удаления изображения/скриншота:', imagePath, 'для slug:', slug);
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/admin/edit/${slug}`;
+      form.style.display = 'none';
+
+      const originalForm = document.getElementById('edit-form');
+      if (originalForm) {
+        const formData = new FormData(originalForm);
+        for (const [key, value] of formData.entries()) {
+          console.log('Копирование поля:', key, '=', value);
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = value;
+          form.appendChild(input);
+        }
+      }
+
+      const deleteInput = document.createElement('input');
+      deleteInput.type = 'hidden';
+      deleteInput.name = 'delete_images';
+      deleteInput.value = imagePath;
+      form.appendChild(deleteInput);
+
+      document.body.appendChild(form);
+      console.log('Форма отправлена для удаления изображения/скриншота');
+      form.submit();
+    }
+
+    // Функция для удаления существующих вложений
+    function removeAttachment(attachmentPath, slug) {
+      if (!confirm('Вы уверены, что хотите удалить это вложение?')) return;
+      console.log('Попытка удаления вложения:', attachmentPath, 'для slug:', slug);
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `/admin/edit/${slug}`;
+      form.style.display = 'none';
+
+      const originalForm = document.getElementById('edit-form');
+      if (originalForm) {
+        const formData = new FormData(originalForm);
+        for (const [key, value] of formData.entries()) {
+          console.log('Копирование поля:', key, '=', value);
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = value;
+          form.appendChild(input);
+        }
+      }
+
+      const deleteInput = document.createElement('input');
+      deleteInput.type = 'hidden';
+      deleteInput.name = 'delete_attachments';
+      deleteInput.value = attachmentPath;
+      form.appendChild(deleteInput);
+
+      document.body.appendChild(form);
+      console.log('Форма отправлена для удаления вложения');
+      form.submit();
+    }
+  </script>
+</body>
+</html>

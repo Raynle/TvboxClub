@@ -1,0 +1,847 @@
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+import json
+import os
+import re
+from datetime import datetime
+from werkzeug.utils import secure_filename
+from transliterate import translit
+from PIL import Image
+import importlib.util
+import sys
+
+app = Flask(__name__)
+app.secret_key = "supersecretkey"
+
+# Путь к файлам
+NEWS_FILE = 'news.json'
+CATEGORIES_FILE = 'categories.json'
+USERS_FILE = 'users.json'
+SETTINGS_FILE = 'settings.json'
+COMMENTS_FILE = 'comments.json'
+VOTES_FILE = 'votes.json'
+ICONS_FILE = 'icons.json'
+ADMINS_FILE = 'admins.json'
+UPLOAD_FOLDER = 'static/uploads'
+PLUGIN_FOLDER = 'static/plugins'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+ALLOWED_PLUGIN_EXTENSIONS = {'py'}
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['PLUGIN_FOLDER'] = PLUGIN_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(PLUGIN_FOLDER, exist_ok=True)
+
+# Список загруженных плагинов
+loaded_plugins = []
+
+# Функции для работы с файлами
+def load_admins():
+    if os.path.exists(ADMINS_FILE):
+        with open(ADMINS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_admins(admins):
+    with open(ADMINS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(admins, f, ensure_ascii=False, indent=2)
+
+def load_users():
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def load_categories():
+    if os.path.exists(CATEGORIES_FILE):
+        with open(CATEGORIES_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {"registration_enabled": True}
+
+def load_icons():
+    default_icons = {
+        "category": {"emoji": "📁", "custom": None},
+        "android": {"emoji": "🤖", "custom": None},
+        "version": {"emoji": "🆔", "custom": None},
+        "modification": {"emoji": "🔑", "custom": None},
+        "settings": {"emoji": "⚙️", "custom": None},
+        "closed": {"emoji": "🔒", "custom": None},
+        "hidden": {"emoji": "🕶️", "custom": None},
+        "views": {"emoji": "👁️", "custom": None},
+        "light_theme": {"emoji": "☀️", "custom": None},
+        "dark_theme": {"emoji": "🌙", "custom": None},
+        "date": {"emoji": "🗓️", "custom": None}
+    }
+    if os.path.exists(ICONS_FILE):
+        try:
+            with open(ICONS_FILE, 'r', encoding='utf-8') as f:
+                loaded_icons = json.load(f)
+                for key, value in default_icons.items():
+                    if key not in loaded_icons:
+                        loaded_icons[key] = value
+                return loaded_icons
+        except (json.JSONDecodeError, IOError):
+            return default_icons
+    return default_icons
+
+def save_icons(icons):
+    with open(ICONS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(icons, f, ensure_ascii=False, indent=2)
+
+def allowed_file(filename, allowed_extensions=ALLOWED_EXTENSIONS):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
+def allowed_plugin_file(filename):
+    return allowed_file(filename, ALLOWED_PLUGIN_EXTENSIONS)
+
+def make_slug(title):
+    slug = translit(title.lower(), 'ru', reversed=True)
+    slug = re.sub(r'[^a-z0-9-]+', '-', slug).strip('-')
+    return slug
+
+def linkify(text):
+    url_pattern = r'(https?://[^\s]+)'
+    return re.sub(url_pattern, r'<a href="\1">\1</a>', text)
+
+def format_bbcode(text):
+    bbcode_patterns = [
+        (r'\[B\](.*?)\[/B\]', r'<strong>\1</strong>'),
+        (r'\[S\](.*?)\[/S\]', r'<s>\1</s>'),
+        (r'\[SIZE=1\](.*?)\[/SIZE\]', r'<span style="font-size: 0.8em;">\1</span>'),
+        (r'\[QUOTE\](.*?)\[/QUOTE\]', r'<blockquote>\1</blockquote>'),
+        (r'\[SPOILER\](.*?)\[/SPOILER\]', r'<details><summary>Спойлер</summary>\1</details>'),
+        (r'\[OFFTOP\](.*?)\[/OFFTOP\]', r'<span class="offtop">\1</span>'),
+        (r'\[attachment="([^"]+)"\]', r'<a href="/static/uploads/\1" target="_blank">Вложение: \1</a>')
+    ]
+    for pattern, replacement in bbcode_patterns:
+        text = re.sub(pattern, replacement, text, flags=re.DOTALL)
+    return text
+
+def has_voted(slug, ip):
+    votes = load_votes()
+    return any(v[0] == slug and v[1] == ip for v in votes)
+
+def load_votes():
+    if os.path.exists(VOTES_FILE):
+        with open(VOTES_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_vote(slug, ip, vote_type):
+    votes = load_votes()
+    votes = [v for v in votes if not (v[0] == slug and v[1] == ip)]
+    votes.append([slug, ip, vote_type])
+    with open(VOTES_FILE, 'w', encoding='utf-8') as f:
+        json.dump(votes, f, ensure_ascii=False, indent=2)
+
+def load_news():
+    if os.path.exists(NEWS_FILE):
+        with open(NEWS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_news(news):
+    with open(NEWS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(news, f, ensure_ascii=False, indent=2)
+
+def save_users(users):
+    with open(USERS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
+
+def save_settings(settings):
+    with open(SETTINGS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(settings, f, ensure_ascii=False, indent=2)
+
+def load_comments():
+    if os.path.exists(COMMENTS_FILE):
+        with open(COMMENTS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_comments(comments):
+    with open(COMMENTS_FILE, 'w', encoding='utf-8') as f:
+        json.dump(comments, f, ensure_ascii=False, indent=4)
+
+def save_categories(categories):
+    with open(CATEGORIES_FILE, 'w', encoding='utf-8') as f:
+        json.dump(categories, f, ensure_ascii=False, indent=2)
+
+def resize_icon(image_path):
+    img = Image.open(image_path)
+    img = img.resize((32, 32), Image.LANCZOS)
+    img.save(image_path, format=img.format)
+
+def load_plugins():
+    global loaded_plugins
+    loaded_plugins = []
+    for filename in os.listdir(app.config['PLUGIN_FOLDER']):
+        if allowed_plugin_file(filename):
+            plugin_name = filename[:-3]
+            plugin_path = os.path.join(app.config['PLUGIN_FOLDER'], filename)
+            spec = importlib.util.spec_from_file_location(plugin_name, plugin_path)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[plugin_name] = module
+            spec.loader.exec_module(module)
+            if hasattr(module, 'init'):
+                module.init(app)
+            loaded_plugins.append({
+                'name': plugin_name,
+                'filename': filename,
+                'active': True
+            })
+
+app.jinja_env.filters['make_slug'] = make_slug
+app.jinja_env.filters['has_voted'] = has_voted
+app.jinja_env.filters['format_bbcode'] = format_bbcode
+
+# Загрузка плагинов при старте
+load_plugins()
+
+# Добавляем проверку перед каждым запросом
+@app.before_request
+def check_admin_status():
+    if request.path.startswith('/admin'):
+        admins = load_admins()
+        if 'user' in session:
+            if session['user'] not in admins and 'admin' in session:
+                session.pop('admin', None)
+                session.pop('user', None)
+                return redirect(url_for('login'))
+            if session['user'] in admins and 'admin' not in session:
+                session['admin'] = True
+
+@app.route('/')
+def index():
+    news_list = load_news()
+    if not session.get('admin'):
+        news_list = [news for news in news_list if not news.get('hidden', False)]
+    theme = session.get('theme', 'dark')
+    categories = load_categories()
+    icons = load_icons()
+    return render_template('index.html', news_list=news_list, linkify=linkify, client_ip=request.remote_addr, theme=theme, categories=categories, icons=icons)
+
+@app.route('/news')
+def news():
+    news_list = load_news()
+    if not session.get('admin'):
+        news_list = [news for news in news_list if not news.get('hidden', False)]
+    theme = session.get('theme', 'dark')
+    categories = load_categories()
+    icons = load_icons()
+    return render_template('news.html', news_list=news_list, linkify=linkify, client_ip=request.remote_addr, theme=theme, categories=categories, icons=icons)
+
+@app.route('/<slug>', methods=['GET', 'POST'])
+def news_detail(slug):
+    news_list = load_news()
+    news = next((n for n in news_list if n['slug'] == slug), None)
+    if not news:
+        return "Пост не найден", 404
+    
+    if news.get('hidden', False) and not session.get('admin'):
+        return "Пост скрыт", 403
+
+    news['views'] = news.get('views', 0) + 1
+    save_news(news_list)
+
+    comments = load_comments()
+    news_comments = [c for c in comments if c['slug'] == slug]
+    
+    if request.method == 'POST' and ('user' in session or 'admin' in session):
+        content = request.form.get('comment')
+        parent_id = request.form.get('parent_id')
+        if content:
+            if news.get('closed', False) and not session.get('admin'):
+                return "Комментирование закрыто", 403
+            user = session['user']  # Используем только текущего пользователя
+            comment_data = {
+                'id': len(comments) + 1,
+                'slug': slug,
+                'user': user,
+                'content': content,
+                'date': datetime.now().strftime('%d.%m.%Y %H:%M'),
+                'parent_id': int(parent_id) if parent_id else None,
+                'edited': False
+            }
+            comments.append(comment_data)
+            save_comments(comments)
+        return redirect(url_for('news_detail', slug=slug))
+    
+    theme = session.get('theme', 'dark')
+    categories = load_categories()
+    icons = load_icons()
+    return render_template('news_detail.html', news=news, comments=news_comments, linkify=linkify, client_ip=request.remote_addr, theme=theme, categories=categories, icons=icons)
+
+@app.route('/subcategory/<category>/<subcategory>')
+def subcategory(category, subcategory):
+    news_list = load_news()
+    filtered_news = [news for news in news_list if news.get('category') == category and news.get('subcategory') == subcategory]
+    if not session.get('admin'):
+        filtered_news = [news for news in filtered_news if not news.get('hidden', False)]
+    theme = session.get('theme', 'dark')
+    categories = load_categories()
+    icons = load_icons()
+    return render_template('subcategory.html', news_list=filtered_news, category=category, subcategory=subcategory, linkify=linkify, client_ip=request.remote_addr, theme=theme, categories=categories, icons=icons)
+
+@app.route('/<slug>/like', methods=['POST'])
+def like_news(slug):
+    ip = request.remote_addr
+    news_list = load_news()
+    news = next((n for n in news_list if n['slug'] == slug), None)
+    if news:
+        votes = load_votes()
+        existing_vote = next((v for v in votes if v[0] == slug and v[1] == ip), None)
+        if not existing_vote:
+            news['likes'] = news.get('likes', 0) + 1
+            save_vote(slug, ip, 'like')
+        elif existing_vote[2] == 'dislike':
+            news['dislikes'] = max(0, news.get('dislikes', 0) - 1)
+            news['likes'] = news.get('likes', 0) + 1
+            save_vote(slug, ip, 'like')
+        save_news(news_list)
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/<slug>/dislike', methods=['POST'])
+def dislike_news(slug):
+    ip = request.remote_addr
+    news_list = load_news()
+    news = next((n for n in news_list if n['slug'] == slug), None)
+    if news:
+        votes = load_votes()
+        existing_vote = next((v for v in votes if v[0] == slug and v[1] == ip), None)
+        if not existing_vote:
+            news['dislikes'] = news.get('dislikes', 0) + 1
+            save_vote(slug, ip, 'dislike')
+        elif existing_vote[2] == 'like':
+            news['likes'] = max(0, news.get('likes', 0) - 1)
+            news['dislikes'] = news.get('dislikes', 0) + 1
+            save_vote(slug, ip, 'dislike')
+        save_news(news_list)
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    settings = load_settings()
+    if not settings.get('registration_enabled', True):
+        return render_template('register.html', error="Регистрация отключена", theme=session.get('theme', 'dark'), categories=load_categories(), icons=load_icons())
+    if request.method == 'POST':
+        login = request.form.get('login')
+        password = request.form.get('password')
+        users = load_users()
+        if any(user['login'] == login for user in users):
+            return render_template('register.html', error="Логин занят", theme=session.get('theme', 'dark'), categories=load_categories(), icons=load_icons())
+        users.append({'login': login, 'password': password})
+        save_users(users)
+        session['user'] = login
+        return redirect(url_for('index'))
+    return render_template('register.html', theme=session.get('theme', 'dark'), categories=load_categories(), icons=load_icons())
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        login = request.form.get('login')
+        password = request.form.get('password')
+        users = load_users()
+        user = next((u for u in users if u['login'] == login and u['password'] == password), None)
+        if user:
+            session['user'] = login
+            admins = load_admins()
+            if login in admins:
+                session['admin'] = True
+            return redirect(url_for('index'))
+        return render_template('login.html', error="Неверный логин или пароль", theme=session.get('theme', 'dark'), categories=load_categories(), icons=load_icons())
+    return render_template('login.html', theme=session.get('theme', 'dark'), categories=load_categories(), icons=load_icons())
+
+@app.route('/logout')
+def logout():
+    session.clear()  # Полное очищение сессии
+    return redirect(url_for('index'))
+
+@app.route('/admin', methods=['GET', 'POST'])
+def admin():
+    admins = load_admins()
+    if 'user' in session and session['user'] not in admins:
+        session.pop('admin', None)
+        session.pop('user', None)
+        return redirect(url_for('login'))
+    if 'admin' not in session:
+        if request.method == 'POST':
+            login = request.form.get('login')
+            password = request.form.get('password')
+            users = load_users()
+            for user in users:
+                if user['login'] == login and user['password'] == password:
+                    session['user'] = login
+                    if login in admins:
+                        session['admin'] = True
+                    return redirect(url_for('admin'))
+        return render_template('admin.html', show_login=True)
+    
+    theme = session.get('theme', 'dark')
+    categories = load_categories()
+    icons = load_icons()
+    return render_template('admin.html', categories=categories, theme=theme, settings=load_settings(), icons=icons)
+
+@app.route('/admin/manage_admins', methods=['GET', 'POST'])
+def manage_admins():
+    admins = load_admins()
+    if 'user' in session and session['user'] not in admins:
+        session.pop('admin', None)
+        session.pop('user', None)
+        return redirect(url_for('login'))
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    
+    users = load_users()
+    search_query = request.form.get('search_query', '').lower() if request.method == 'POST' and 'search_query' in request.form else ''
+    filtered_users = [user for user in users if search_query in user['login'].lower()] if search_query else users
+    
+    if request.method == 'POST' and 'action' in request.form:
+        action = request.form.get('action')
+        username = request.form.get('username')
+        
+        if action == 'add' and username:
+            if username not in admins and username in [user['login'] for user in users]:
+                admins.append(username)
+                save_admins(admins)
+                if username == session.get('user') and 'admin' not in session:
+                    session['admin'] = True
+                return redirect(url_for('manage_admins'))
+        elif action == 'remove' and username in admins:
+            admins.remove(username)
+            save_admins(admins)
+            if username == session.get('user'):
+                session.pop('admin', None)
+                session.pop('user', None)
+                return redirect(url_for('login'))
+        
+        return redirect(url_for('manage_admins'))
+    
+    theme = session.get('theme', 'dark')
+    categories = load_categories()
+    icons = load_icons()
+    return render_template('admin.html', categories=categories, theme=theme, settings=load_settings(), icons=icons, show_manage_admins=True, admins=admins, users=filtered_users, search_query=search_query)
+
+@app.route('/admin/plugins', methods=['GET', 'POST'])
+def manage_plugins():
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    if request.method == 'POST':
+        if 'file' in request.files:
+            file = request.files['file']
+            if file and allowed_plugin_file(file.filename):
+                filename = secure_filename(file.filename)
+                file.save(os.path.join(app.config['PLUGIN_FOLDER'], filename))
+                return jsonify({'message': 'Плагин загружен. Перезапустите сервер для активации.'})
+        return jsonify({'error': 'Ошибка при загрузке плагина'}), 400
+    theme = session.get('theme', 'dark')
+    categories = load_categories()
+    icons = load_icons()
+    return render_template('admin.html', categories=categories, theme=theme, settings=load_settings(), icons=icons, show_plugins=True, plugins=loaded_plugins)
+
+@app.route('/admin/toggle_registration', methods=['POST'])
+def toggle_registration():
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    settings = load_settings()
+    settings['registration_enabled'] = 'registration_enabled' in request.form
+    save_settings(settings)
+    return redirect(url_for('admin'))
+
+@app.route('/admin/icons', methods=['GET', 'POST'])
+def manage_icons():
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    icons = load_icons()
+    if request.method == 'POST':
+        icon_type = request.form.get('icon_type')
+        if 'file' in request.files and request.files['file'].filename:
+            file = request.files['file']
+            if file and allowed_file(file.filename):
+                filename = secure_filename(file.filename)
+                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                file.save(file_path)
+                resize_icon(file_path)
+                icons[icon_type]['custom'] = f"uploads/{filename}"
+                icons[icon_type]['emoji'] = ''
+        elif 'reset' in request.form:
+            icons[icon_type]['custom'] = None
+        save_icons(icons)
+        return redirect(url_for('manage_icons'))
+    theme = session.get('theme', 'dark')
+    categories = load_categories()
+    return render_template('admin.html', categories=categories, linkify=linkify, theme=theme, settings=load_settings(), icons=icons, show_icons=True)
+
+@app.route('/admin/add', methods=['POST'])
+def add_news():
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    title = request.form.get('title')
+    category = request.form.get('category', '')
+    subcategory = request.form.get('subcategory', '')
+    android = request.form.get('android')
+    version = request.form.get('version')
+    modification = request.form.get('modification')
+    content = request.form.get('content')
+    full_description = request.form.get('full_description')
+    images = request.files.getlist('images')
+    
+    image_paths = []
+    for image in images:
+        if image and allowed_file(image.filename):
+            filename = secure_filename(image.filename)
+            image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            image_paths.append(f"uploads/{filename}")
+    
+    news_list = load_news()
+    slug = make_slug(title)
+    news_list.insert(0, {
+        'title': title,
+        'slug': slug,
+        'category': category,
+        'subcategory': subcategory,
+        'android': android,
+        'version': version,
+        'modification': modification,
+        'content': content,
+        'full_description': full_description,
+        'date': datetime.now().strftime('%d.%m.%Y'),
+        'images': image_paths,
+        'likes': 0,
+        'dislikes': 0,
+        'views': 0,
+        'closed': False,
+        'hidden': False
+    })
+    save_news(news_list)
+    return redirect(url_for('index'))
+
+@app.route('/admin/add_news', methods=['GET', 'POST'])
+def add_news_page():
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    if request.method == 'POST':
+        title = request.form.get('title')
+        category = request.form.get('category', '')
+        subcategory = request.form.get('subcategory', '')
+        android = request.form.get('android')
+        version = request.form.get('version')
+        modification = request.form.get('modification')
+        content = request.form.get('content')
+        full_description = request.form.get('full_description')
+        images = request.files.getlist('images')
+        
+        image_paths = []
+        for image in images:
+            if image and allowed_file(image.filename):
+                filename = secure_filename(image.filename)
+                image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                image_paths.append(f"uploads/{filename}")
+        
+        news_list = load_news()
+        slug = make_slug(title)
+        news_list.insert(0, {
+            'title': title,
+            'slug': slug,
+            'category': category,
+            'subcategory': subcategory,
+            'android': android,
+            'version': version,
+            'modification': modification,
+            'content': content,
+            'full_description': full_description,
+            'date': datetime.now().strftime('%d.%m.%Y'),
+            'images': image_paths,
+            'likes': 0,
+            'dislikes': 0,
+            'views': 0,
+            'closed': False,
+            'hidden': False
+        })
+        save_news(news_list)
+        return redirect(url_for('index'))
+    
+    categories = load_categories()
+    theme = session.get('theme', 'dark')
+    icons = load_icons()
+    return render_template('add_news.html', categories=categories, theme=theme, icons=icons)
+
+@app.route('/admin/edit/<slug>', methods=['GET', 'POST'])
+def edit_news(slug):
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    news_list = load_news()
+    news = next((n for n in news_list if n['slug'] == slug), None)
+    if not news:
+        return "Пост не найден", 404
+    
+    categories = load_categories()
+    if request.method == 'POST':
+        title = request.form.get('title')
+        category = request.form.get('category', '')
+        subcategory = request.form.get('subcategory', '')
+        android = request.form.get('android')
+        version = request.form.get('version')
+        modification = request.form.get('modification')
+        content = request.form.get('content')
+        full_description = request.form.get('full_description')
+        images = request.files.getlist('images')
+        
+        image_paths = news['images'].copy() if 'images' in news else []
+        
+        if 'delete_images' in request.form:
+            image_to_delete = request.form['delete_images']
+            if image_to_delete in image_paths:
+                image_paths.remove(image_to_delete)
+                full_path = os.path.join(app.config['UPLOAD_FOLDER'], image_to_delete)
+                if os.path.exists(full_path):
+                    try:
+                        os.remove(full_path)
+                        news['images'] = image_paths
+                        save_news(news_list)
+                    except Exception as e:
+                        print(f"Ошибка при удалении: {e}")
+        
+        for image in images:
+            if image and allowed_file(image.filename):
+                filename = secure_filename(image.filename)
+                image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+                image_paths.append(f"uploads/{filename}")
+        
+        news.update({
+            'title': title,
+            'slug': make_slug(title),
+            'category': category,
+            'subcategory': subcategory,
+            'android': android,
+            'version': version,
+            'modification': modification,
+            'content': content,
+            'full_description': full_description,
+            'images': image_paths,
+            'date': f' Обновлено: {datetime.now().strftime("%d.%m.%Y %H:%M")}'
+        })
+        save_news(news_list)
+        return render_template('edit_news.html', news=news, categories=categories, theme=session.get('theme', 'dark'), icons=load_icons())
+    
+    theme = session.get('theme', 'dark')
+    icons = load_icons()
+    return render_template('edit_news.html', news=news, categories=categories, theme=theme, icons=icons)
+
+@app.route('/admin/add_category', methods=['POST'])
+def add_category():
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    category_name = request.form.get('category_name')
+    if category_name:
+        categories = load_categories()
+        if not any(c['name'] == category_name for c in categories):
+            categories.append({'name': category_name, 'subcategories': []})
+            save_categories(categories)
+    return redirect(url_for('admin'))
+
+@app.route('/admin/add_subcategory', methods=['POST'])
+def add_subcategory():
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    category_name = request.form.get('category_name')
+    subcategory_name = request.form.get('subcategory_name')
+    if category_name and subcategory_name:
+        categories = load_categories()
+        for category in categories:
+            if category['name'] == category_name:
+                if subcategory_name not in category['subcategories']:
+                    category['subcategories'].append(subcategory_name)
+                    save_categories(categories)
+                    break
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete_category/<category>')
+def delete_category(category):
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    categories = load_categories()
+    categories = [c for c in categories if c['name'] != category]
+    save_categories(categories)
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete_subcategory/<category>/<subcategory>')
+def delete_subcategory(category, subcategory):
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    categories = load_categories()
+    for cat in categories:
+        if cat['name'] == category:
+            cat['subcategories'] = [sub for sub in cat['subcategories'] if sub != subcategory]
+            break
+    save_categories(categories)
+    return redirect(url_for('admin'))
+
+@app.route('/admin/delete/<slug>')
+def delete_news(slug):
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    news_list = load_news()
+    news_list = [news for news in news_list if news['slug'] != slug]
+    save_news(news_list)
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/admin/close/<slug>')
+def close_news(slug):
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    news_list = load_news()
+    news = next((n for n in news_list if n['slug'] == slug), None)
+    if news:
+        news['closed'] = True
+        save_news(news_list)
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/admin/open/<slug>')
+def open_news(slug):
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    news_list = load_news()
+    news = next((n for n in news_list if n['slug'] == slug), None)
+    if news:
+        news['closed'] = False
+        save_news(news_list)
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/admin/hide/<slug>')
+def hide_news(slug):
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    news_list = load_news()
+    news = next((n for n in news_list if n['slug'] == slug), None)
+    if news:
+        news['hidden'] = True
+        save_news(news_list)
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/admin/show/<slug>')
+def show_news(slug):
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    news_list = load_news()
+    news = next((n for n in news_list if n['slug'] == slug), None)
+    if news:
+        news['hidden'] = False
+        save_news(news_list)
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/admin/edit_comment/<int:comment_id>', methods=['GET', 'POST'])
+def edit_comment(comment_id):
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    
+    comments = load_comments()
+    comment = next((c for c in comments if c['id'] == comment_id), None)
+    if not comment:
+        return "Комментарий не найден", 404
+    
+    if request.method == 'POST':
+        content = request.form.get('content')
+        if content:
+            comment['content'] = content
+            comment['date'] = datetime.now().strftime('%d.%m.%Y %H:%M')
+            comment['edited'] = True
+            save_comments(comments)
+        return redirect(url_for('news_detail', slug=comment['slug']))
+    
+    theme = session.get('theme', 'dark')
+    categories = load_categories()
+    icons = load_icons()
+    return render_template('edit_comment.html', comment=comment, theme=theme, categories=categories, icons=icons)
+
+@app.route('/admin/delete_comment/<int:comment_id>')
+def delete_comment(comment_id):
+    if 'admin' not in session:
+        return redirect(url_for('admin'))
+    
+    comments = load_comments()
+    comments = [c for c in comments if c['id'] != comment_id]
+    save_comments(comments)
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/edit_comment/<int:comment_id>', methods=['GET', 'POST'])
+def user_edit_comment(comment_id):
+    if 'user' not in session and 'admin' not in session:
+        return redirect(url_for('login'))
+    
+    comments = load_comments()
+    comment = next((c for c in comments if c['id'] == comment_id), None)
+    if not comment:
+        return "Комментарий не найден", 404
+    
+    current_user = session.get('user')
+    if comment['user'] != current_user:
+        return "Вы не можете редактировать этот комментарий", 403
+    
+    if request.method == 'POST':
+        content = request.form.get('content')
+        if content:
+            comment['content'] = content
+            comment['date'] = datetime.now().strftime('%d.%m.%Y %H:%M')
+            comment['edited'] = True
+            save_comments(comments)
+        return redirect(url_for('news_detail', slug=comment['slug']))
+    
+    theme = session.get('theme', 'dark')
+    categories = load_categories()
+    icons = load_icons()
+    return render_template('edit_comment.html', comment=comment, theme=theme, categories=categories, icons=icons)
+
+@app.route('/delete_comment/<int:comment_id>')
+def user_delete_comment(comment_id):
+    if 'user' not in session and 'admin' not in session:
+        return redirect(url_for('login'))
+    
+    comments = load_comments()
+    comment = next((c for c in comments if c['id'] == comment_id), None)
+    if not comment:
+        return "Комментарий не найден", 404
+    
+    current_user = session.get('user')
+    if comment['user'] != current_user:
+        return "Вы не можете удалить этот комментарий", 403
+    
+    comments = [c for c in comments if c['id'] != comment_id]
+    save_comments(comments)
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/toggle_theme', methods=['POST'])
+def toggle_theme():
+    current_theme = session.get('theme', 'dark')
+    session['theme'] = 'light' if current_theme == 'dark' else 'dark'
+    return '', 204
+
+@app.route('/search', methods=['GET'])
+def search():
+    query = request.args.get('q', '').lower()
+    news_list = load_news()
+    results = [
+        news for news in news_list
+        if query in news['title'].lower() or query in news['content'].lower()
+    ]
+    return jsonify([{
+        'title': news['title'],
+        'slug': news['slug'],
+        'content': news['content'][:100] + '...' if len(news['content']) > 100 else news['content']
+    } for news in results])
+
+@app.route('/get_subcategories', methods=['POST'])
+def get_subcategories():
+    category = request.form.get('category')
+    categories = load_categories()
+    selected_category = next((cat for cat in categories if cat['name'] == category), None)
+    if selected_category:
+        return jsonify(selected_category['subcategories'])
+    return jsonify([])
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8000)

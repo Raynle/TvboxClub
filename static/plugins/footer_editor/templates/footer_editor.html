@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Редактирование футера - TV Box Hub</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <h1>TV Box Hub - Редактирование футера</h1>
+    <nav>
+      <ul>
+        <li><a href="/admin">Назад в админку</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <h2>Текущий футер</h2>
+    <div>{{ get_footer()|safe }}</div>
+
+    <h2>Добавить ссылку</h2>
+    <form method="POST">
+      <input type="hidden" name="action" value="add_link">
+      <label for="link_text">Текст ссылки:</label>
+      <input type="text" id="link_text" name="link_text" required>
+      <label for="link_url">URL:</label>
+      <input type="text" id="link_url" name="link_url" required>
+      <label for="link_target">Target:</label>
+      <select id="link_target" name="link_target">
+        <option value="_self">Остаться на странице</option>
+        <option value="_blank">Открыть в новой вкладке</option>
+      </select>
+      <button type="submit">Добавить ссылку</button>
+    </form>
+
+    <h2>Редактировать или удалить ссылки</h2>
+    {% for index, link in footer.links|enumerate %}
+      <form method="POST" style="display: inline-block; margin-right: 10px;">
+        <input type="hidden" name="action" value="edit_link">
+        <input type="hidden" name="link_index" value="{{ index }}">
+        <label>Текст:</label>
+        <input type="text" name="link_text" value="{{ link.text }}" required>
+        <label>URL:</label>
+        <input type="text" name="link_url" value="{{ link.url }}" required>
+        <label>Target:</label>
+        <select name="link_target">
+          <option value="_self" {% if link.target == "_self" %}selected{% endif %}>Остаться на странице</option>
+          <option value="_blank" {% if link.target == "_blank" %}selected{% endif %}>Открыть в новой вкладке</option>
+        </select>
+        <button type="submit">Сохранить</button>
+      </form>
+      <form method="POST" style="display: inline-block;">
+        <input type="hidden" name="action" value="delete_link">
+        <input type="hidden" name="link_index" value="{{ index }}">
+        <button type="submit">Удалить</button>
+      </form>
+    {% endfor %}
+
+    <h2>Изменить текст футера</h2>
+    <form method="POST">
+      <input type="hidden" name="action" value="update_text">
+      <label for="footer_text">Текст:</label>
+      <input type="text" id="footer_text" name="footer_text" value="{{ footer.text }}" required>
+      <button type="submit">Сохранить текст</button>
+    </form>
+  </main>
+  <footer>
+    {{ get_footer()|safe }}
+  </footer>
+</body>
+</html>

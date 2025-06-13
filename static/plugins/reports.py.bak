@@ -1,0 +1,122 @@
+
+def init(app):
+    import os
+    import json
+    from flask import request, session, redirect, url_for, render_template_string, Response
+
+    REPORTS_FILE = 'reports.json'
+    TEMPLATE_FILE = 'reports_template.html'
+
+    DEFAULT_TEMPLATE = """
+    <!DOCTYPE html>
+    <html><head><meta charset="utf-8">
+    <title>Жалобы</title>
+    <style>
+        body { background: #111; color: #fff; font-family: sans-serif; padding: 20px; }
+        .report { background: #222; padding: 10px; margin: 10px 0; border-radius: 6px; }
+        button { background: #f33; color: white; border: none; padding: 5px 10px; cursor: pointer; }
+        a { color: #1e90ff; text-decoration: none; }
+    </style>
+    </head><body>
+    <h1>Жалобы ({{ reports|length }})</h1>
+    {% for r in reports %}
+        <div class="report">
+            <p><b>Тип:</b> {{ r.type }}</p>
+            <p><b>Цель:</b> <a href="/{{ r.target }}">{{ r.target }}</a></p>
+            <p><b>Пользователь:</b> {{ r.user }} | IP: {{ r.ip }}</p>
+            <p><b>Причина:</b> {{ r.reason }}</p>
+            <form method="post" action="/admin/reports/delete/{{ loop.index0 }}">
+                <button type="submit">Удалить жалобу</button>
+            </form>
+        </div>
+    {% else %}
+        <p>Жалоб нет.</p>
+    {% endfor %}
+    </body></html>
+    """
+
+    def load_reports():
+        if os.path.exists(REPORTS_FILE):
+            with open(REPORTS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return []
+
+    def save_reports(reports):
+        with open(REPORTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(reports, f, ensure_ascii=False, indent=2)
+
+    def load_template():
+        if os.path.exists(TEMPLATE_FILE):
+            with open(TEMPLATE_FILE, 'r', encoding='utf-8') as f:
+                return f.read()
+        return DEFAULT_TEMPLATE
+
+    def save_template(content):
+        with open(TEMPLATE_FILE, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+    @app.route('/report/<type>/<target>', methods=['GET', 'POST'])
+    def report_submit(type, target):
+        if 'user' not in session and 'admin' not in session:
+            return redirect(url_for('login'))
+
+        if request.method == 'POST':
+            reason = request.form.get('reason')
+            if reason:
+                reports = load_reports()
+                reports.append({
+                    'type': type,
+                    'target': target,
+                    'reason': reason,
+                    'user': session.get('user', 'anon'),
+                    'ip': request.remote_addr
+                })
+                save_reports(reports)
+                return '<p>Жалоба отправлена. <a href="/">Вернуться</a></p>'
+        return f'''
+        <html><body style="background:#111;color:#fff;font-family:sans-serif;padding:20px">
+        <h2>Пожаловаться на {type}</h2>
+        <form method="post">
+            <input name="reason" placeholder="Причина жалобы" style="width:300px" required>
+            <button type="submit">Отправить</button>
+        </form>
+        </body></html>
+        '''
+
+    @app.route('/admin/reports')
+    def view_reports():
+        if 'admin' not in session:
+            return redirect(url_for('admin'))
+        return render_template_string(load_template(), reports=load_reports())
+
+    @app.route('/admin/reports/delete/<int:index>', methods=['POST'])
+    def delete_report(index):
+        if 'admin' not in session:
+            return redirect(url_for('admin'))
+        reports = load_reports()
+        if 0 <= index < len(reports):
+            reports.pop(index)
+            save_reports(reports)
+        return redirect(url_for('view_reports'))
+
+    @app.after_request
+    def inject_complaint_button(response):
+        if response.content_type.startswith('text/html'):
+            try:
+                data = response.get_data(as_text=True)
+                if '<!-- complaint-news -->' in data:
+                    data = data.replace(
+                        '<!-- complaint-news -->',
+                        '<form method="get" action="/report/news/{slug}">'
+                        '<button style="margin-top:10px">Пожаловаться на новость</button></form>'
+                    )
+                if '<!-- complaint-comment -->' in data:
+                    data = data.replace(
+                        '<!-- complaint-comment -->',
+                        '<form method="get" action="/report/comment/{id}">'
+                        '<button style="margin-left:10px">Пожаловаться</button></form>'
+                    )
+                response.set_data(data)
+            except Exception as e:
+                pass
+        return response

@@ -1,0 +1,242 @@
+from flask import Blueprint, make_response, request, session
+import re
+from bs4 import BeautifulSoup
+
+# Создаем Blueprint для плагина
+bbcode_bp = Blueprint('bbcode_buttons', __name__)
+
+# Функция обработки BB-кодов
+def process_bbcode(text):
+    is_admin = session.get('admin', False)
+    is_premium = session.get('premium', False)
+
+    # Отладка: выводим статусы в консоль
+    print(f"Debug - is_admin: {is_admin}, is_premium: {is_premium}")
+
+    # Обработка [SIZE]
+    def size_replacer(match):
+        size = int(match.group(1)) * 4
+        content = match.group(2)
+        return f'<span style="font-size: {size}px;">{content}</span>'
+    text = re.sub(r'\[SIZE=(\d+)\](.*?)\[/SIZE\]', size_replacer, text, flags=re.DOTALL)
+
+    # Обработка [HIDE] с поддержкой Premium
+    def hide_replacer(match):
+        content = match.group(1)
+        if is_admin or is_premium:
+            return f'<div class="hidden-content premium-content" style="border-left: 4px solid #ff8c00;">{content}</div>'
+        else:
+            return '<div class="hidden-content">Доступно для группы Premium</div>'
+    text = re.sub(r'\[HIDE\](.*?)\[/HIDE\]', hide_replacer, text, flags=re.DOTALL)
+
+    # Обработка [ADM] с поддержкой любых символов
+    def adm_replacer(match):
+        letter = match.group(1) or 'А'  # По умолчанию 'А', если символ не указан
+        content = match.group(2)
+        return f'<div class="adm-quote"><span class="adm-letter">{letter}</span>{content}</div>'
+    text = re.sub(r'\[ADM(?:=(.))?\](.*?)\[/ADM\]', adm_replacer, text, flags=re.DOTALL)
+
+    # Обработка [QUOTE] для цитат с абзацами и ограничением ширины
+    def quote_replacer(match):
+        content = match.group(1).replace('\n', '</p><p>')
+        return f'<blockquote class="quote" style="max-width: 100%; overflow-wrap: break-word; word-break: break-all;"><p>{content}</p></blockquote>'
+    text = re.sub(r'\[QUOTE\](.*?)\[/QUOTE\]', quote_replacer, text, flags=re.DOTALL)
+
+    return text
+
+# Middleware для инъекции кнопок BB-кодов
+def inject_bbcode_buttons(response):
+    if 'text/html' in response.content_type and ('/admin/add_news' in request.url or '/admin/edit/' in request.url):
+        soup = BeautifulSoup(response.data, 'html.parser')
+        
+        # Находим все textarea с именами content и full_description
+        content_field = soup.find('textarea', {'name': 'content'})
+        full_desc_field = soup.find('textarea', {'name': 'full_description'})
+        
+        if content_field or full_desc_field:
+            bbcode_html_content = """
+            <div class="bbcode-buttons" data-for="content" style="margin-bottom: 10px;">
+                <button type="button" onclick="insertBBCode('content', '[B]', '[/B]')">Жирный текст</button>
+                <button type="button" onclick="insertBBCode('content', '[S]', '[/S]')">Зачеркнутый текст</button>
+                <button type="button" onclick="insertSizeCode('content', '5')">Мелкий/Больший текст</button>
+                <button type="button" onclick="insertBBCode('content', '[QUOTE]', '[/QUOTE]')">Цитата</button>
+                <button type="button" onclick="insertBBCode('content', '[SPOILER]', '[/SPOILER]')">Спойлер</button>
+                <button type="button" onclick="insertBBCode('content', '[OFFTOP]', '[/OFFTOP]')">Оффтоп</button>
+                <button type="button" onclick="insertBBCode('content', '[HIDE]', '[/HIDE]')">Скрытый текст</button>
+                <button type="button" onclick="insertURLCode('content')">Вставить ссылку</button>
+                <button type="button" onclick="insertADMCode('content')">Админская цитата</button>
+            </div>
+            """
+            bbcode_html_full_desc = """
+            <div class="bbcode-buttons" data-for="full_description" style="margin-bottom: 10px;">
+                <button type="button" onclick="insertBBCode('full_description', '[B]', '[/B]')">Жирный текст</button>
+                <button type="button" onclick="insertBBCode('full_description', '[S]', '[/S]')">Зачеркнутый текст</button>
+                <button type="button" onclick="insertSizeCode('full_description', '5')">Мелкий/Больший текст</button>
+                <button type="button" onclick="insertBBCode('full_description', '[QUOTE]', '[/QUOTE]')">Цитата</button>
+                <button type="button" onclick="insertBBCode('full_description', '[SPOILER]', '[/SPOILER]')">Спойлер</button>
+                <button type="button" onclick="insertBBCode('full_description', '[OFFTOP]', '[/OFFTOP]')">Оффтоп</button>
+                <button type="button" onclick="insertBBCode('full_description', '[HIDE]', '[/HIDE]')">Скрытый текст</button>
+                <button type="button" onclick="insertURLCode('full_description')">Вставить ссылку</button>
+                <button type="button" onclick="insertADMCode('full_description')">Админская цитата</button>
+            </div>
+            <script>
+                function insertBBCode(fieldName, startTag, endTag) {
+                    const textarea = document.querySelector('textarea[name="' + fieldName + '"]');
+                    if (!textarea) return;
+                    const start = textarea.selectionStart || 0;
+                    const end = textarea.selectionEnd || 0;
+                    const value = textarea.value;
+                    const selected = value.substring(start, end);
+                    const newValue = value.substring(0, start) + startTag + (selected || '') + endTag + value.substring(end);
+                    textarea.value = newValue;
+                    textarea.focus();
+                    textarea.selectionStart = start + startTag.length;
+                    textarea.selectionEnd = end + startTag.length + (selected.length || 0);
+                }
+
+                function insertSizeCode(fieldName, size) {
+                    const textarea = document.querySelector('textarea[name="' + fieldName + '"]');
+                    if (!textarea) return;
+                    const start = textarea.selectionStart || 0;
+                    const end = textarea.selectionEnd || 0;
+                    const value = textarea.value;
+                    const selected = value.substring(start, end);
+                    const newValue = value.substring(0, start) + '[SIZE=' + size + ']' + (selected || '') + '[/SIZE]' + value.substring(end);
+                    textarea.value = newValue;
+                    textarea.focus();
+                    textarea.selectionStart = start + 7 + size.length;
+                    textarea.selectionEnd = end + 7 + size.length + (selected.length || 0);
+                }
+
+                function insertURLCode(fieldName) {
+                    const textarea = document.querySelector('textarea[name="' + fieldName + '"]');
+                    if (!textarea) return;
+                    const start = textarea.selectionStart || 0;
+                    const end = textarea.selectionEnd || 0;
+                    const value = textarea.value;
+                    const selected = value.substring(start, end);
+                    const url = prompt('Введите URL:', 'https://');
+                    if (url) {
+                        const newValue = value.substring(0, start) + '[URL=' + url + ']' + (selected || '[название]') + '[/URL]' + value.substring(end);
+                        textarea.value = newValue;
+                        textarea.focus();
+                        textarea.selectionStart = start + 5 + url.length;
+                        textarea.selectionEnd = end + 5 + url.length + (selected.length || 9);
+                    }
+                }
+
+                function insertADMCode(fieldName) {
+                    const textarea = document.querySelector('textarea[name="' + fieldName + '"]');
+                    if (!textarea) return;
+                    const start = textarea.selectionStart || 0;
+                    const end = textarea.selectionEnd || 0;
+                    const value = textarea.value;
+                    const selected = value.substring(start, end);
+                    const letter = prompt('Введите символ (например, А, ★, Z):', 'А');
+                    if (letter) {
+                        const newValue = value.substring(0, start) + '[ADM=' + letter + ']' + (selected || '') + '[/ADM]' + value.substring(end);
+                        textarea.value = newValue;
+                        textarea.focus();
+                        textarea.selectionStart = start + 5 + letter.length;
+                        textarea.selectionEnd = end + 5 + letter.length + (selected.length || 0);
+                    }
+                }
+            </script>
+            <style>
+                .bbcode-buttons button {
+                    margin: 2px;
+                    padding: 5px 10px;
+                    background-color: #007bff;
+                    color: white;
+                    border: none;
+                    cursor: pointer;
+                }
+                .bbcode-buttons button:hover {
+                    background-color: #0056b3;
+                }
+                .hidden-content {
+                    margin: 10px 0;
+                    padding: 10px;
+                    background-color: #fff3e0;
+                    border-radius: 5px;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                    max-width: 100%;
+                }
+                .hidden-content:empty::before {
+                    content: "Содержимое доступно только для админов и Premium";
+                    color: #666;
+                }
+                [data-theme="dark"] .hidden-content {
+                    background-color: #333;
+                    color: #fff;
+                }
+                [data-theme="dark"] .hidden-content:empty::before {
+                    color: #ccc;
+                }
+                .quote, .adm-quote {
+                    margin: 10px 0;
+                    padding: 10px;
+                    background-color: #f9f9f9;
+                    border-left: 4px solid #ccc;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                    max-width: 100%;
+                }
+                .adm-quote {
+                    border-left-color: #ff4500;
+                }
+                .adm-letter {
+                    font-weight: bold;
+                    margin-right: 10px;
+                }
+                [data-theme="dark"] .quote, [data-theme="dark"] .adm-quote {
+                    background-color: #444;
+                    color: #fff;
+                    border-left-color: #888;
+                }
+                [data-theme="dark"] .adm-quote {
+                    border-left-color: #ff4500;
+                }
+            </style>
+            """
+            
+            # Вставляем кнопки перед каждым полем
+            if content_field:
+                parent = content_field.find_parent('div') or content_field
+                parent.insert_before(BeautifulSoup(bbcode_html_content, 'html.parser'))
+            if full_desc_field:
+                parent = full_desc_field.find_parent('div') or full_desc_field
+                parent.insert_before(BeautifulSoup(bbcode_html_full_desc, 'html.parser'))
+        
+        response.data = str(soup)
+    return response
+
+# Инициализация плагина
+def init(app):
+    app.register_blueprint(bbcode_bp)
+    @app.after_request
+    def apply_bbcode_buttons(response):
+        return inject_bbcode_buttons(response)
+    
+    # Переопределяем фильтр format_bbcode
+    def updated_format_bbcode(text):
+        # Сначала применяем существующие правила из app.py
+        patterns = [
+            (r'\[B\](.*?)\[/B\]', r'<strong>\1</strong>'),
+            (r'\[I\](.*?)\[/I\]', r'<em>\1</em>'),
+            (r'\[U\](.*?)\[/U\]', r'<u>\1</u>'),
+            (r'\[S\](.*?)\[/S\]', r'<s>\1</s>'),
+            (r'\[QUOTE\](.*?)\[/QUOTE\]', r'<blockquote class="quote">\1</blockquote>'),
+            (r'\[SPOILER\](.*?)\[/SPOILER\]', r'<details><summary>Спойлер</summary>\1</details>'),
+            (r'\[OFFTOP\](.*?)\[/OFFTOP\]', r'<span class="offtop">\1</span>'),
+            (r'\[URL=(.*?)\](.*?)\[/URL\]', r'<a href="\1">\2</a>')
+        ]
+        for pattern, replacement in patterns:
+            text = re.sub(pattern, replacement, text, flags=re.DOTALL)
+        
+        # Добавляем новые правила для [SIZE], [HIDE] и [ADM]
+        text = process_bbcode(text)
+        return text
+
+    app.jinja_env.filters['format_bbcode'] = updated_format_bbcode

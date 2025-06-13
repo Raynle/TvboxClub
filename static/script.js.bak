@@ -1,0 +1,195 @@
+document.addEventListener('DOMContentLoaded', () => {
+  const menuToggle = document.getElementById('menu-toggle');
+  const closeSidebar = document.getElementById('close-sidebar');
+  const sidebar = document.getElementById('sidebar');
+  const themeToggle = document.getElementById('theme-toggle');
+  const searchInput = document.getElementById('search');
+  const searchResults = document.getElementById('search-results');
+
+  if (menuToggle && sidebar) {
+    menuToggle.addEventListener('click', () => {
+      sidebar.classList.toggle('open');
+    });
+  }
+
+  if (closeSidebar && sidebar) {
+    closeSidebar.addEventListener('click', () => {
+      sidebar.classList.remove('open');
+    });
+  }
+
+  if (themeToggle) {
+    themeToggle.addEventListener('change', () => {
+      const theme = themeToggle.checked ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+      fetch('/toggle_theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+  }
+
+  if (searchInput && searchResults) {
+    searchInput.addEventListener('input', async () => {
+      const query = searchInput.value.trim();
+      if (query.length < 2) {
+        searchResults.style.display = 'none';
+        return;
+      }
+
+      const response = await fetch(`/search?q=${encodeURIComponent(query)}`);
+      const results = await response.json();
+      searchResults.innerHTML = results.map(item => `
+        <a href="/${item.slug}">${item.title}</a>
+      `).join('');
+      searchResults.style.display = results.length ? 'block' : 'none';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+        searchResults.style.display = 'none';
+      }
+    });
+  }
+
+  const categoryToggles = document.querySelectorAll('.category-toggle');
+  categoryToggles.forEach(toggle => {
+    toggle.addEventListener('click', () => {
+      const subcategories = toggle.nextElementSibling;
+      if (subcategories) {
+        subcategories.classList.toggle('open');
+        toggle.classList.toggle('active');
+      }
+    });
+  });
+
+  const bbcodeButtons = document.querySelectorAll('.bbcode-btn');
+  const commentTextarea = document.getElementById('comment-textarea');
+  if (bbcodeButtons.length && commentTextarea) {
+    bbcodeButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const tag = button.dataset.tag;
+        const startTag = tag === 'attachment' ? `[attachment=""]` : `[${tag}]`;
+        const endTag = tag === 'attachment' ? '' : `[/${tag}]`;
+        const startPos = commentTextarea.selectionStart;
+        const endPos = commentTextarea.selectionEnd;
+        const selectedText = commentTextarea.value.substring(startPos, endPos);
+        const newText = `${startTag}${selectedText}${endTag}`;
+        commentTextarea.value = commentTextarea.value.substring(0, startPos) + newText + commentTextarea.value.substring(endPos);
+        commentTextarea.focus();
+        if (tag === 'attachment') {
+          commentTextarea.setSelectionRange(startPos + 12, startPos + 12);
+        } else {
+          commentTextarea.setSelectionRange(startPos + newText.length, startPos + newText.length);
+        }
+      });
+    });
+  }
+
+  const settingsButtons = document.querySelectorAll('.settings-btn');
+  settingsButtons.forEach(button => {
+    button.addEventListener('click', (e) => {
+      const dropdown = button.nextElementSibling;
+      dropdown.classList.toggle('open');
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.news-actions')) {
+      document.querySelectorAll('.dropdown-menu').forEach(menu => {
+        menu.classList.remove('open');
+      });
+    }
+  });
+
+  // Обработка лайков и дизлайков без перезагрузки страницы
+  document.querySelectorAll('.like-btn, .dislike-btn').forEach(button => {
+    button.addEventListener('click', async event => {
+      event.preventDefault();
+      const form = button.closest('form');
+      const response = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await response.json();
+      if (data.success) {
+        // Обновляем количество лайков/дизлайков
+        button.querySelector('.like-icon').nextSibling.textContent = data.new_count;
+      }
+    });
+  });
+
+  // Обработка действий с постами без перезагрузки страницы
+  document.querySelectorAll('.dropdown-menu a').forEach(link => {
+    link.addEventListener('click', async event => {
+      event.preventDefault();
+      const response = await fetch(link.href, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert('Действие выполнено успешно.');
+      }
+    });
+  });
+
+  // Предпросмотр загруженных иконок
+  const fileInputs = document.querySelectorAll('input[type="file"]');
+  fileInputs.forEach(input => {
+    input.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const preview = input.closest('.icon-item').querySelector('.icon-preview');
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (preview.tagName === 'IMG') {
+            preview.src = e.target.result;
+          } else {
+            preview.style.display = 'none';
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.className = 'icon-preview';
+            preview.parentNode.replaceChild(img, preview);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  });
+
+  // Обработка загрузки плагинов
+  const pluginForm = document.querySelector('form[action="/admin/plugins"]');
+  if (pluginForm) {
+    pluginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(pluginForm);
+      const response = await fetch('/admin/plugins', {
+        method: 'POST',
+        body: formData
+      });
+      const result = await response.json();
+      if (response.ok) {
+        alert(result.message);
+      } else {
+        alert(result.error || 'Ошибка при загрузке плагина');
+      }
+    });
+  }
+});
+
+function showReplyForm(commentId) {
+    const form = document.getElementById(`reply-form-${commentId}`);
+    form.style.display = 'block';
+}
+
+function insertUser(username) {
+    const textarea = document.querySelector('textarea[name="comment"]');
+    const startPos = textarea.selectionStart;
+    const endPos = textarea.selectionEnd;
+    textarea.value = textarea.value.substring(0, startPos) + `[@${username}] ` + textarea.value.substring(endPos);
+    textarea.focus();
+    textarea.setSelectionRange(startPos + username.length + 3, startPos + username.length + 3);
+}

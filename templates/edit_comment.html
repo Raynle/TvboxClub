@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ theme }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Редактировать комментарий - TV Box Hub</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <h1>TV Box Hub</h1>
+    <nav>
+      <ul>
+        <li><a href="/">Главная</a></li>
+        {% if session.admin %}
+          <li><a href="/admin">Админ</a></li>
+        {% endif %}
+        <li>
+          <label class="theme-switch">
+            <input type="checkbox" id="theme-toggle" {% if theme == 'light' %}checked{% endif %}>
+            <span class="slider">
+              {% if icons.light_theme.custom %}
+                <img src="/static/{{ icons.light_theme.custom }}" class="icon-preview" alt="Light Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.light_theme.emoji }}</span>
+              {% endif %}
+              {% if icons.dark_theme.custom %}
+                <img src="/static/{{ icons.dark_theme.custom }}" class="icon-preview" alt="Dark Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.dark_theme.emoji }}</span>
+              {% endif %}
+            </span>
+          </label>
+        </li>
+        <li>
+          <button id="menu-toggle" class="menu-toggle">☰</button>
+        </li>
+      </ul>
+    </nav>
+    <div class="search-container">
+      <input type="text" id="search" placeholder="Поиск..." autocomplete="off">
+      <div id="search-results" class="search-results"></div>
+    </div>
+    <div id="sidebar" class="sidebar">
+      <button id="close-sidebar" class="close-sidebar">✖</button>
+      <div class="auth-links">
+        {% if session.user %}
+          <p>Здравствуйте, рады приветствовать вас на нашем сайте, {{ session.user }}!</p>
+          <a href="/logout">Выйти</a>
+        {% else %}
+          <a href="/login">Войти</a>
+          <a href="/register">Регистрация</a>
+        {% endif %}
+      </div>
+      <h2>Категории</h2>
+      {% for category in categories %}
+        <div class="category">
+          <button class="category-toggle">{{ category.name }}</button>
+          <div class="subcategories">
+            {% for subcategory in category.subcategories %}
+              <a href="/subcategory/{{ category.name }}/{{ subcategory }}">{{ subcategory }}</a>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </header>
+  <main>
+    <section>
+      <h2>Редактировать комментарий</h2>
+      <form method="POST">
+        <div class="bbcode-toolbar">
+          <button type="button" class="bbcode-btn" data-tag="B">Жирный</button>
+          <button type="button" class="bbcode-btn" data-tag="S">Зачеркнутый</button>
+          <button type="button" class="bbcode-btn" data-tag="SIZE=1">Маленький</button>
+          <button type="button" class="bbcode-btn" data-tag="QUOTE">Цитата</button>
+          <button type="button" class="bbcode-btn" data-tag="SPOILER">Спойлер</button>
+          <button type="button" class="bbcode-btn" data-tag="OFFTOP">Оффтоп</button>
+          <button type="button" class="bbcode-btn" data-tag="attachment">Вложение</button>
+        </div>
+        <textarea id="comment-textarea" name="content" required>{{ comment.content }}</textarea>
+        <button type="submit">Сохранить</button>
+      </form>
+      <a href="/{{ comment.slug }}" class="admin-logout">Назад</a>
+    </section>
+  </main>
+  <footer>
+    <p>© 2025 TV Box Hub</p>
+  </footer>
+  <script src="/static/script.js"></script>
+</body>
+</html>

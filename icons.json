@@ -1,0 +1,46 @@
+{
+  "category": {
+    "emoji": "",
+    "custom": "uploads/1000057356.png"
+  },
+  "android": {
+    "emoji": "",
+    "custom": "uploads/1000053132.png"
+  },
+  "version": {
+    "emoji": "🆔",
+    "custom": null
+  },
+  "modification": {
+    "emoji": "",
+    "custom": "uploads/1000057016.png"
+  },
+  "settings": {
+    "emoji": "⚙️",
+    "custom": null
+  },
+  "closed": {
+    "emoji": "",
+    "custom": "uploads/1000053181.png"
+  },
+  "hidden": {
+    "emoji": "",
+    "custom": "uploads/1000053177.png"
+  },
+  "views": {
+    "emoji": "",
+    "custom": "uploads/1000053164.png"
+  },
+  "light_theme": {
+    "emoji": "☀️",
+    "custom": null
+  },
+  "dark_theme": {
+    "emoji": "🌙",
+    "custom": null
+  },
+  "date": {
+    "emoji": "",
+    "custom": "uploads/1000057420.png"
+  }
+}

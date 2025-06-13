@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Управление группами - TV Box Hub</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    h1, h2, label, button, select, input, option {
+      color: #333 !important;
+    }
+    body, main, .autocomplete-container, #username-suggestions {
+      background-color: #fff !important;
+    }
+    .autocomplete-container {
+      position: relative;
+      width: 100%;
+      max-width: 300px;
+    }
+    #username-input {
+      width: 100%;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    #username-suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: #fff;
+      border: 1px solid #ddd;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 1000;
+      display: none;
+    }
+    #username-suggestions div {
+      padding: 8px;
+      cursor: pointer;
+    }
+    #username-suggestions div:hover {
+      background: #f0f0f0;
+    }
+    .group-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .group-list button {
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: #fff;
+      padding: 20px;
+      border-radius: 5px;
+      width: 100%;
+      max-width: 400px;
+    }
+    .modal-content form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .modal-content button {
+      align-self: flex-end;
+    }
+    .close-modal {
+      float: right;
+      cursor: pointer;
+      font-size: 20px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TV Box Hub - Управление группами</h1>
+    <nav>
+      <ul>
+        <li><a href="/admin">Назад в админку</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <h2>Добавить новую группу</h2>
+    <form method="POST">
+      <input type="hidden" name="action" value="add_group">
+      <label for="group_name">Название группы:</label>
+      <input type="text" id="group_name" name="group_name" required>
+      <label for="group_color">Цвет группы:</label>
+      <input type="color" id="group_color" name="group_color" required>
+      <label><input type="checkbox" name="can_comment" checked> Разрешить комментировать</label>
+      <button type="submit">Добавить группу</button>
+    </form>
+
+    <h2>Список групп</h2>
+    <ul class="group-list">
+      {% for group in groups %}
+        <li style="color: {{ group.color }}">
+          {{ group.name }} (Комментирование: {{ 'разрешено' if group.can_comment else 'запрещено' }})
+          {% if group.name not in ['Админ', 'Пользователь'] %}
+            <form method="POST" style="display:inline;">
+              <input type="hidden" name="action" value="delete_group">
+              <input type="hidden" name="group_name" value="{{ group.name }}">
+              <button type="submit" onclick="return confirm('Удалить группу {{ group.name }}?')">Удалить</button>
+            </form>
+            <button onclick="openEditModal('{{ group.name }}', '{{ group.color }}', {{ group.can_comment|lower }})">Редактировать</button>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+
+    <h2>Назначить пользователя в группу</h2>
+    <form method="POST">
+      <input type="hidden" name="action" value="assign_group">
+      <label for="username-input">Пользователь:</label>
+      <div class="autocomplete-container">
+        <input type="text" id="username-input" name="username" required autocomplete="off">
+        <div id="username-suggestions"></div>
+      </div>
+      <label for="group_name">Группа:</label>
+      <select id="group_name" name="group_name" required onchange="togglePremiumDays(this)">
+        {% for group in groups %}
+          <option value="{{ group.name }}">{{ group.name }}</option>
+        {% endfor %}
+      </select>
+      <input type="number" name="premium_days" min="1" placeholder="Дней для Premium" style="display: none;">
+      <button type="submit">Назначить</button>
+    </form>
+  </main>
+
+  <div id="edit-group-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal" onclick="closeEditModal()">&times;</span>
+      <h2>Редактировать группу</h2>
+      <form method="POST">
+        <input type="hidden" name="action" value="edit_group">
+        <input type="hidden" id="modal_old_group_name" name="old_group_name">
+        <label for="modal_new_group_name">Новое название группы:</label>
+        <input type="text" id="modal_new_group_name" name="new_group_name" required>
+        <label for="modal_group_color">Цвет группы:</label>
+        <input type="color" id="modal_group_color" name="group_color" required>
+        <label><input type="checkbox" id="modal_can_comment" name="can_comment"> Разрешить комментировать</label>
+        <button type="submit">Сохранить изменения</button>
+      </form>
+    </div>
+  </div>
+
+  <footer>
+    <p>© 2025 TV Box Hub</p>
+  </footer>
+  <script>
+    const input = document.getElementById('username-input');
+    const suggestionsBox = document.getElementById('username-suggestions');
+
+    input.addEventListener('input', async () => {
+      const query = input.value.trim();
+      if (query.length < 2) {
+        suggestionsBox.style.display = 'none';
+        return;
+      }
+
+      const response = await fetch(`/admin/search_users?q=${encodeURIComponent(query)}`);
+      const users = await response.json();
+
+      suggestionsBox.innerHTML = '';
+      if (users.length > 0) {
+        users.forEach(user => {
+          const div = document.createElement('div');
+          div.textContent = user;
+          div.addEventListener('click', () => {
+            input.value = user;
+            suggestionsBox.style.display = 'none';
+          });
+          suggestionsBox.appendChild(div);
+        });
+        suggestionsBox.style.display = 'block';
+      } else {
+        suggestionsBox.style.display = 'none';
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!input.contains(e.target) && !suggestionsBox.contains(e.target)) {
+        suggestionsBox.style.display = 'none';
+      }
+    });
+
+    function openEditModal(name, color, canComment) {
+      document.getElementById('modal_old_group_name').value = name;
+      document.getElementById('modal_new_group_name').value = name;
+      document.getElementById('modal_group_color').value = color;
+      document.getElementById('modal_can_comment').checked = canComment;
+      document.getElementById('edit-group-modal').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+      document.getElementById('edit-group-modal').style.display = 'none';
+    }
+
+    function togglePremiumDays(select) {
+      const input = select.closest('form').querySelector('input[name="premium_days"]');
+      input.style.display = select.value === 'Premium' ? 'inline-block' : 'none';
+      input.required = select.value === 'Premium';
+    }
+
+    document.querySelectorAll('select[name="group_name"]').forEach(select => {
+      select.addEventListener('change', () => togglePremiumDays(select));
+      togglePremiumDays(select);
+    });
+  </script>
+</body>
+</html>

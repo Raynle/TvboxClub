@@ -1,0 +1,221 @@
+from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify
+import os
+import json
+from datetime import datetime, timedelta
+
+group_management_bp = Blueprint('group_management', __name__, template_folder='group_management/templates', url_prefix='/admin')
+
+def load_groups():
+    if os.path.exists('groups.json'):
+        with open('groups.json', 'r', encoding='utf-8') as f:
+            groups = json.load(f)
+            for group in groups:
+                if group['name'] == 'Забанен':
+                    group['can_comment'] = False
+                if group['name'] == 'Модератор' and 'permissions' not in group:
+                    group['permissions'] = {
+                        'add_news': False, 'delete_news': False, 'edit_news': False,
+                        'add_admins': False, 'manage_groups': False, 'manage_users': False,
+                        'is_admin': False
+                    }
+            return groups
+    default_groups = [
+        {"name": "Админ", "color": "#ff0000", "can_comment": True, "permissions": {"add_news": True, "delete_news": True, "edit_news": True, "add_admins": True, "manage_groups": True, "manage_users": True, "is_admin": True}},
+        {"name": "Premium", "color": "#ffd700", "can_comment": True, "permissions": {"add_news": False, "delete_news": False, "edit_news": False, "add_admins": False, 'manage_groups': False, 'manage_users': False, 'is_admin': False}},
+        {"name": "Пользователь", "color": "#00ff00", "can_comment": True, "permissions": {"add_news": False, "delete_news": False, "edit_news": False, "add_admins": False, 'manage_groups': False, 'manage_users': False, 'is_admin': False}},
+        {"name": "Забанен", "color": "#707070", "can_comment": False, "permissions": {"add_news": False, "delete_news": False, "edit_news": False, "add_admins': False, 'manage_groups': False, 'manage_users': False, 'is_admin': False}},
+        {"name": "Модератор", "color": "#4aa4ff", "can_comment": True, "permissions": {"add_news": False, "delete_news": False, "edit_news": False, "add_admins': False, 'manage_groups': False, 'manage_users': False, 'is_admin': False}}
+    ]
+    save_groups(default_groups)
+    return default_groups
+
+def save_groups(groups):
+    with open('groups.json', 'w', encoding='utf-8') as f:
+        json.dump(groups, f, ensure_ascii=False, indent=2)
+
+def load_users():
+    if os.path.exists('users.json'):
+        with open('users.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def save_users(users):
+    with open('users.json', 'w', encoding='utf-8') as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
+
+def load_admins():
+    if os.path.exists('admins.json'):
+        with open('admins.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return []
+
+def check_premium_expiration(users):
+    current_date = datetime.now()
+    updated = False
+    for user in users:
+        if user.get('group') == 'Premium' and 'premium_expiry' in user:
+            try:
+                expiry_date = datetime.fromisoformat(user['premium_expiry'])
+                if current_date >= expiry_date:
+                    user['group'] = 'Пользователь'
+                    user.pop('premium_expiry', None)
+                    updated = True
+            except ValueError:
+                user.pop('premium_expiry', None)
+    if updated:
+        save_users(users)
+    return users
+
+@group_management_bp.route('/manage_users', methods=['GET', 'POST'])
+def manage_users():
+    if 'admin' not in session:
+        return redirect(url_for('login'))
+
+    groups = load_groups()
+    users = check_premium_expiration(load_users())
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        group_name = request.form.get('group')
+        premium_days = request.form.get('premium_days', type=int)
+
+        user = next((u for u in users if u['login'] == username), None)
+        if user and group_name in [g['name'] for g in groups]:
+            user['group'] = group_name
+            if group_name == 'Premium' and premium_days and premium_days > 0:
+                expiry_date = datetime.now() + timedelta(days=premium_days)
+                user['premium_expiry'] = expiry_date.isoformat()
+            else:
+                user.pop('premium_expiry', None)
+            save_users(users)
+        return redirect(url_for('group_management.manage_users'))
+
+    icons = {
+        'light_theme': {'emoji': '☀️', 'custom': None},
+        'dark_theme': {'emoji': '🌙', 'custom': None}
+    }
+    return render_template('admin.html',
+                         show_manage_users=True,
+                         users=users,
+                         groups=groups,
+                         theme=session.get('theme', 'dark'),
+                         icons=icons,
+                         categories=[],
+                         settings={'registration_enabled': True},
+                         group_management_tab='<a href="/admin/manage_groups">Группы</a>')
+
+@group_management_bp.route('/manage_groups', methods=['GET', 'POST'])
+def manage_groups():
+    if 'admin' not in session:
+        return redirect(url_for('login'))
+    
+    groups = load_groups()
+    users = check_premium_expiration(load_users())
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'add_group':
+            name = request.form.get('group_name')
+            color = request.form.get('group_color')
+            can_comment = 'can_comment' in request.form
+            if name and color:
+                groups.append({
+                    "name": name,
+                    "color": color,
+                    "can_comment": can_comment,
+                    "permissions": {"add_news": False, "delete_news": False, "edit_news": False, "add_admins": False, 'manage_groups': False, 'manage_users': False, 'is_admin': False}
+                })
+                save_groups(groups)
+        
+        elif action == 'edit_group':
+            old_name = request.form.get('old_group_name')
+            new_name = request.form.get('new_group_name')
+            color = request.form.get('group_color')
+            can_comment = 'can_comment' in request.form
+            if old_name and new_name and color:
+                for group in groups:
+                    if group['name'] == old_name:
+                        group['name'] = new_name
+                        group['color'] = color
+                        group['can_comment'] = can_comment
+                        break
+                save_groups(groups)
+                for user in users:
+                    if user.get('group') == old_name:
+                        user['group'] = new_name
+                save_users(users)
+        
+        elif action == 'delete_group':
+            group_name = request.form.get('group_name')
+            if group_name not in ['Админ', 'Пользователь']:
+                groups = [group for group in groups if group['name'] != group_name]
+                save_groups(groups)
+                for user in users:
+                    if user.get('group') == group_name:
+                        user['group'] = 'Пользователь'
+                        user.pop('premium_expiry', None)
+                save_users(users)
+        
+        elif action == 'assign_group':
+            username = request.form.get('username')
+            group_name = request.form.get('group_name')
+            premium_days = request.form.get('premium_days', type=int)
+            for user in users:
+                if user['login'] == username:
+                    user['group'] = group_name
+                    if group_name == 'Premium' and premium_days and premium_days > 0:
+                        expiry_date = datetime.now() + timedelta(days=premium_days)
+                        user['premium_expiry'] = expiry_date.isoformat()
+                    else:
+                        user.pop('premium_expiry', None)
+                    break
+            save_users(users)
+        
+        return redirect(url_for('group_management.manage_groups'))
+    
+    return render_template('manage_groups.html', groups=groups, users=users)
+
+@group_management_bp.route('/search_users', methods=['GET'])
+def search_users():
+    query = request.args.get('q', '').lower()
+    users = load_users()
+    matching_users = [user['login'] for user in users if query in user['login'].lower() and len(query) >= 2]
+    return jsonify(matching_users)
+
+@group_management_bp.before_request
+def restrict_banned_users():
+    if 'user' in session:
+        users = load_users()
+        user = next((u for u in users if u['login'] == session['user']), None)
+        if user and user.get('group') == 'Забанен':
+            if request.method == 'POST' and (request.path.startswith('/news') or request.path.startswith('/comment')):
+                return "У вас нет прав для комментирования", 403
+
+def init(app):
+    app.register_blueprint(group_management_bp)
+    
+    @app.context_processor
+    def inject_group_management():
+        if 'admin' in session:
+            return dict(group_management_tab='<a href="' + url_for('group_management.manage_groups') + '">Группы</a>')
+        return dict(group_management_tab="")
+
+    @app.context_processor
+    def inject_user_group():
+        groups = load_groups()
+        users = check_premium_expiration(load_users())
+        
+        def get_user_group(user_login):
+            user = next((u for u in users if u['login'].lower() == user_login.lower()), None)
+            if user and 'group' in user:
+                group = next((g for g in groups if g['name'] == user['group']), None)
+                if group:
+                    expiry_info = ""
+                    if user['group'] == 'Premium' and 'premium_expiry' in user:
+                        expiry_date = datetime.fromisoformat(user['premium_expiry'])
+                        expiry_info = f" (до {expiry_date.strftime('%d.%m.%Y')})"
+                    return f'<span style="color: {group["color"]}; font-size: 0.9em">{group["name"]}{expiry_info}</span>'
+            return '<span style="color: #00ff00; font-size: 0.9em">Пользователь</span>'
+        
+        return dict(get_user_group=get_user_group)

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ theme or 'dark' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Управление группами - TV Box Hub</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Управление группами</h1>
+    <nav>
+      <ul>
+        <li><a href="/admin">Назад</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <section>
+      <h2>Создать группу</h2>
+      <form method="POST">
+        <input type="hidden" name="action" value="create_group">
+        <label>Название:</label><input type="text" name="group_name" required><br>
+        <label>Цвет:</label><input type="color" name="group_color" value="#000000"><br>
+        <label><input type="checkbox" name="add_news"> Добавлять новости</label><br>
+        <label><input type="checkbox" name="delete_news"> Удалять новости</label><br>
+        <label><input type="checkbox" name="edit_news"> Редактировать новости</label><br>
+        <label><input type="checkbox" name="add_admins"> Добавлять админов</label><br>
+        <label><input type="checkbox" name="manage_groups"> Управлять группами</label><br>
+        <label><input type="checkbox" name="manage_users"> Управлять пользователями</label><br>
+        <label><input type="checkbox" name="is_admin"> Админ (все права)</label><br>
+        <button type="submit">Создать</button>
+      </form>
+      <h2>Группы</h2>
+      <ul>
+        {% for group in groups %}
+          <li>
+            {{ group.name }} (Цвет: <span style="color: {{ group.color }}">{{ group.color }}</span>)
+            <form method="POST" style="display: inline;">
+              <input type="hidden" name="action" value="edit_group">
+              <input type="hidden" name="old_group_name" value="{{ group.name }}">
+              Название: <input type="text" name="group_name" value="{{ group.name }}" required>
+              Цвет: <input type="color" name="group_color" value="{{ group.color }}">
+              <label><input type="checkbox" name="add_news" {% if group.permissions.add_news %}checked{% endif %}> Добавлять новости</label><br>
+              <label><input type="checkbox" name="delete_news" {% if group.permissions.delete_news %}checked{% endif %}> Удалять новости</label><br>
+              <label><input type="checkbox" name="edit_news" {% if group.permissions.edit_news %}checked{% endif %}> Редактировать новости</label><br>
+              <label><input type="checkbox" name="add_admins" {% if group.permissions.add_admins %}checked{% endif %}> Добавлять админов</label><br>
+              <label><input type="checkbox" name="manage_groups" {% if group.permissions.manage_groups %}checked{% endif %}> Управлять группами</label><br>
+              <label><input type="checkbox" name="manage_users" {% if group.permissions.manage_users %}checked{% endif %}> Управлять пользователями</label><br>
+              <label><input type="checkbox" name="is_admin" {% if group.permissions.is_admin %}checked{% endif %}> Админ</label><br>
+              <button type="submit">Сохранить</button>
+            </form>
+            <form method="POST" style="display: inline;">
+              <input type="hidden" name="action" value="delete_group">
+              <input type="hidden" name="group_name" value="{{ group.name }}">
+              <button type="submit" onclick="return confirm('Удалить?')">Удалить</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  </main>
+  <footer>
+    <p>© 2025 TV Box Hub</p>
+  </footer>
+  <script src="/static/script.js"></script>
+</body>
+</html>

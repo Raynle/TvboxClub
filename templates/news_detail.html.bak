@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ theme }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ news.title }} - TV Box Hub</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    /* Стили для модального окна */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.9);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-content {
+      max-width: 90%;
+      max-height: 90%;
+      object-fit: contain;
+    }
+
+    .close-modal {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      color: white;
+      font-size: 30px;
+      cursor: pointer;
+    }
+
+    /* Стили для разделительной линии */
+    hr {
+      border: none;
+      border-top: 1px solid #ccc;
+      margin: 20px 0;
+    }
+
+    /* Стили для выделения комментария */
+    .comment:target {
+      background-color: #f0f0f0;
+      border-left: 3px solid #007bff;
+      padding-left: 10px;
+    }
+
+    [data-theme="dark"] .comment:target {
+      background-color: #555;
+    }
+
+    /* Стили для кнопки ссылки */
+    .comment-actions .share-link-btn {
+      background-color: #007bff; /* Синий фон на светлой */
+      border: 1px solid #000; /* Обводка */
+      color: #fff;
+      cursor: pointer;
+      padding: 6px 10px;
+      font-size: 0.9em;
+      margin: 2px 0;
+      width: 100%;
+      text-align: left;
+    }
+
+    [data-theme="dark"] .comment-actions .share-link-btn {
+      background-color: #555; /* Серый фон на тёмной */
+    }
+
+    .comment-actions .share-link-btn:hover {
+      background-color: #0056b3; /* Тёмно-синий при наведении */
+    }
+
+    [data-theme="dark"] .comment-actions .share-link-btn:hover {
+      background-color: #777; /* Тёмно-серый при наведении */
+    }
+
+    /* Стили для вложений */
+    .attachment-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .download-btn {
+      background-color: #007bff;
+      color: white;
+      padding: 8px 12px;
+      text-decoration: none;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    .download-btn:hover {
+      background-color: #0056b3;
+    }
+    .file-size {
+      font-size: 0.8em;
+      color: #555;
+    }
+    [data-theme="dark"] .file-size {
+      color: #bbb;
+    }
+
+    /* Стили для шестерёнки и выпадающего меню в комментариях */
+    .comment-actions {
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .comment-settings {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+    }
+
+    .settings-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1em;
+      color: #555;
+      padding: 0;
+    }
+
+    [data-theme="dark"] .settings-btn {
+      color: #bbb;
+    }
+
+    .dropdown-menu {
+      display: none;
+      position: absolute;
+      bottom: 0;
+      right: 20px; /* Смещение влево от шестерёнки */
+      background-color: #fff; /* Белый фон контейнера на светлой */
+      border: 1px solid #ccc; /* Обводка меню */
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+      z-index: 1000;
+      min-width: 120px;
+      opacity: 1; /* Непрозрачное */
+    }
+
+    [data-theme="dark"] .dropdown-menu {
+      background-color: #333; /* Тёмный фон контейнера на тёмной */
+      border: 1px solid #777; /* Обводка для тёмной */
+    }
+
+    .dropdown-menu a {
+      display: block;
+      padding: 6px 10px;
+      color: #fff; /* Белый текст */
+      text-decoration: none;
+      font-size: 0.9em;
+      background-color: #007bff; /* Синий фон кнопок на светлой */
+      border: 1px solid #000; /* Обводка для кнопок */
+      margin: 2px 0;
+      width: 100%;
+      text-align: left;
+    }
+
+    [data-theme="dark"] .dropdown-menu a {
+      background-color: #555; /* Серый фон кнопок на тёмной */
+    }
+
+    .dropdown-menu a:hover {
+      background-color: #0056b3; /* Тёмно-синий при наведении */
+    }
+
+    [data-theme="dark"] .dropdown-menu a:hover {
+      background-color: #777; /* Тёмно-серый при наведении */
+    }
+
+    .dropdown-menu.active {
+      display: block; /* Показ меню при активации */
+    }
+
+    /* Стили для шестерёнки и меню новостей */
+    .news-actions {
+      position: relative;
+    }
+
+    .news-actions .dropdown-menu {
+      background-color: #fff; /* Белый фон контейнера на светлой */
+      border: 1px solid #ccc; /* Обводка меню */
+      opacity: 1; /* Непрозрачное */
+      min-width: 120px;
+      z-index: 1000;
+      position: absolute;
+      right: 0;
+    }
+
+    [data-theme="dark"] .news-actions .dropdown-menu {
+      background-color: #333; /* Тёмный фон контейнера на тёмной */
+      border: 1px solid #777; /* Обводка для тёмной */
+    }
+
+    .news-actions .dropdown-menu a {
+      display: block;
+      padding: 6px 10px;
+      color: #fff; /* Белый текст */
+      text-decoration: none;
+      font-size: 0.9em;
+      background-color: #007bff; /* Синий фон кнопок на светлой */
+      border: 1px solid #000; /* Обводка для кнопок */
+      margin: 2px 0;
+    }
+
+    [data-theme="dark"] .news-actions .dropdown-menu a {
+      background-color: #555; /* Серый фон кнопок на тёмной */
+    }
+
+    .news-actions .dropdown-menu a:hover {
+      background-color: #0056b3; /* Тёмно-синий при наведении */
+    }
+
+    [data-theme="dark"] .news-actions .dropdown-menu a:hover {
+      background-color: #777; /* Тёмно-серый при наведении */
+    }
+
+    .news-actions .dropdown-menu.active {
+      display: block; /* Показ меню при активации */
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>TV Box Hub</h1>
+    <nav>
+      <ul>
+        <li><a href="/">Главная</a></li>
+        {% if session.admin %}
+          <li><a href="/admin">Админ</a></li>
+        {% endif %}
+        <li>
+          <label class="theme-switch">
+            <input type="checkbox" id="theme-toggle" {% if theme == 'light' %}checked{% endif %}>
+            <span class="slider">
+              {% if icons.light_theme.custom %}
+                <img src="/static/{{ icons.light_theme.custom }}" class="icon-preview" alt="Light Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.light_theme.emoji }}</span>
+              {% endif %}
+              {% if icons.dark_theme.custom %}
+                <img src="/static/{{ icons.dark_theme.custom }}" class="icon-preview" alt="Dark Theme">
+              {% else %}
+                <span class="emoji-icon">{{ icons.dark_theme.emoji }}</span>
+              {% endif %}
+            </span>
+          </label>
+        </li>
+        <li>
+          <button id="menu-toggle" class="menu-toggle">☰</button>
+        </li>
+      </ul>
+    </nav>
+    <div class="search-container">
+      <input type="text" id="search" placeholder="Поиск..." autocomplete="off">
+      <div id="search-results" class="search-results"></div>
+    </div>
+    <div id="sidebar" class="sidebar">
+      <button id="close-sidebar" class="close-sidebar">✖</button>
+      <div class="auth-links">
+        {% if session.user %}
+          <p>Здравствуйте, рады приветствовать вас на нашем сайте, {{ session.user }}!</p>
+          <a href="/logout">Выйти</a>
+        {% else %}
+          <a href="/login">Войти</a>
+          <a href="/register">Регистрация</a>
+        {% endif %}
+      </div>
+      <h2>Категории</h2>
+      {% for category in categories %}
+        <div class="category">
+          <button class="category-toggle">{{ category.name }}</button>
+          <div class="subcategories">
+            {% for subcategory in category.subcategories %}
+              <a href="/subcategory/{{ category.name }}/{{ subcategory }}">{{ subcategory }}</a>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </header>
+  <main>
+    <section>
+      <article>
+        <div class="news-header">
+          <h2>
+            {% if news.closed %}
+              {% if icons.closed.custom %}
+                <img src="/static/{{ icons.closed.custom }}" class="icon-preview" alt="Closed">
+              {% else %}
+                <span class="emoji-icon">{{ icons.closed.emoji }}</span>
+              {% endif %}
+            {% endif %}
+            {% if news.hidden %}
+              {% if icons.hidden.custom %}
+                <img src="/static/{{ icons.hidden.custom }}" class="icon-preview" alt="Hidden">
+              {% else %}
+                <span class="emoji-icon">{{ icons.hidden.emoji }}</span>
+              {% endif %}
+            {% endif %}
+            {{ news.title }}
+          </h2>
+          <span class="news-date">
+            {% if icons.date.custom %}
+              <img src="/static/{{ icons.date.custom }}" class="icon-preview" alt="Date">
+            {% else %}
+              <span class="emoji-icon">{{ icons.date.emoji }}</span>
+            {% endif %}
+            {{ news.date }}
+          </span>
+        </div>
+
+        {% if news.category or news.android or news.version or news.modification %}
+          <div class="news-meta">
+            {% if news.category %}
+              <p>
+                {% if icons.category.custom %}
+                  <img src="/static/{{ icons.category.custom }}" class="icon-preview" alt="Category">
+                {% else %}
+                  <span class="emoji-icon">{{ icons.category.emoji }}</span>
+                {% endif %}
+                Раздел: {{ news.category }}
+              </p>
+            {% endif %}
+            {% if news.android %}
+              <p>
+                {% if icons.android.custom %}
+                  <img src="/static/{{ icons.android.custom }}" class="icon-preview" alt="Android">
+                {% else %}
+                  <span class="emoji-icon">{{ icons.android.emoji }}</span>
+                {% endif %}
+                Android: {{ news.android }}
+              </p>
+            {% endif %}
+            {% if news.version %}
+              <p>
+                {% if icons.version.custom %}
+                  <img src="/static/{{ icons.version.custom }}" class="icon-preview" alt="Version">
+                {% else %}
+                  <span class="emoji-icon">{{ icons.version.emoji }}</span>
+                {% endif %}
+                Версия: {{ news.version }}
+              </p>
+            {% endif %}
+            {% if news.modification %}
+              <p>
+                {% if icons.modification.custom %}
+                  <img src="/static/{{ icons.modification.custom }}" class="icon-preview" alt="Modification">
+                {% else %}
+                  <span class="emoji-icon">{{ icons.modification.emoji }}</span>
+                {% endif %}
+                Модификация: {{ news.modification }}
+              </p>
+            {% endif %}
+          </div>
+        {% endif %}
+
+        <hr>
+
+        <p>{{ news.content | format_bbcode | safe }}</p>
+        {% if news.images %}
+          {% for image in news.images %}
+            <img src="/static/{{ image }}" alt="News Image" class="news-image">
+          {% endfor %}
+        {% endif %}
+        <div class="full-description">
+          {% if news.full_description %}
+            <h3></h3>
+            <p>{{ news.full_description | format_bbcode | safe }}</p>
+          {% endif %}
+          {% if news.screenshots %}
+            <div class="screenshots">
+              {% for screenshot in news.screenshots %}
+                <img src="/static/{{ screenshot }}" alt="Screenshot" class="screenshot-image" onclick="openModal('/static/{{ screenshot }}')">
+              {% endfor %}
+            </div>
+          {% endif %}
+          {% if news.attachments %}
+            <div class="attachments">
+              <h3>Скачать:</h3>
+              {% for attachment in news.attachments %}
+                <div class="attachment-item">
+                  <a href="/download/{{ attachment.filename }}" class="download-btn">{{ attachment.filename }}</a>
+                  <span class="file-size">
+                    {% if attachment.size %}
+                      ({{ (attachment.size / 1024 / 1024) | round(2) }} MB)
+                    {% else %}
+                      (Размер неизвестен)
+                    {% endif %}
+                  </span>
+                  <div class="download-count">Скачано: {{ downloads.get(attachment.filename, 0) }} раз</div>
+                </div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+        <div class="likes">
+          <form action="/{{ news.slug }}/like" method="POST">
+            <button type="submit" class="like-btn" {% if news.slug|has_voted(client_ip) and news.likes > 0 %}class="voted"{% endif %}>
+              <img src="/static/images/like_icon.png" alt="Like" class="like-icon">
+              {{ news.likes }}
+            </button>
+          </form>
+          <form action="/{{ news.slug }}/dislike" method="POST">
+            <button type="submit" class="dislike-btn" {% if news.slug|has_voted(client_ip) and news.dislikes > 0 %}class="voted"{% endif %}>
+              <img src="/static/images/dislike_icon.png" alt="Dislike" class="like-icon">
+              {{ news.dislikes }}
+            </button>
+          </form>
+        </div>
+        <div class="views-container">
+          <span class="views">
+            {% if icons.views.custom %}
+              <img src="/static/{{ icons.views.custom }}" class="icon-preview" alt="Views">
+            {% else %}
+              <span class="emoji-icon">{{ icons.views.emoji }}</span>
+            {% endif %}
+            {{ news.views }}
+          </span>
+        </div>
+        {% if session.admin %}
+          <div class="news-actions">
+            <button class="settings-btn" onclick="toggleDropdown(this)">
+              {% if icons.settings.custom %}
+                <img src="/static/{{ icons.settings.custom }}" class="icon-preview" alt="Settings">
+              {% else %}
+                <span class="emoji-icon">{{ icons.settings.emoji }}</span>
+              {% endif %}
+            </button>
+            <div class="dropdown-menu">
+              <a href="/admin/{{ 'open' if news.closed else 'close' }}/{{ news.slug }}">{{ 'Открыть пост' if news.closed else 'Закрыть пост' }}</a>
+              <a href="/admin/{{ 'show' if news.hidden else 'hide' }}/{{ news.slug }}">{{ 'Показать пост' if news.hidden else 'Скрыть пост' }}</a>
+            </div>
+          </div>
+          <div class="admin-actions">
+            <a href="/admin/edit/{{ news.slug }}">Редактировать</a>
+            <a href="/admin/delete/{{ news.slug }}">Удалить</a>
+          </div>
+        {% endif %}
+      </article>
+      <section class="comments-section">
+        <h2>Комментарии</h2>
+        {% for comment in comments %}
+          {% if not comment.parent_id %}
+            <div class="comment" id="comment-{{ comment.id }}">
+              <p><strong>{{ comment.user }}</strong> ({{ comment.date }})<br>{{ get_user_group(comment.user) | safe }}</p>
+              <p>{{ comment.content | format_bbcode | safe }}</p>
+              {% if comment.edited %}
+                <p class="edited">Редактировал: {% if comment.edit_datetime %}{{ comment.edit_datetime }}{% else %}неизвестно когда{% endif %}</p>
+              {% endif %}
+              <div class="comment-actions">
+                {% if session.user or session.admin %}
+                  <button class="reply-btn" onclick="showReplyForm({{ comment.id }})">Ответить</button>
+                {% endif %}
+                {% if session.user or session.admin %}
+                  <div class="comment-settings">
+                    <button class="settings-btn" onclick="toggleDropdown(this)">⚙️</button>
+                    <div class="dropdown-menu">
+                      <button class="share-link-btn" onclick="copyCommentLink('comment-{{ comment.id }}')">🔗 Ссылка</button>
+                      {% if session.admin or (session.user and session.user == comment.user) %}
+                        <a href="/{{ 'admin/edit_comment' if session.admin else 'edit_comment' }}/{{ comment.id }}">🖍️ Редактировать</a>
+                        <a href="/{{ 'admin/delete_comment' if session.admin else 'delete_comment' }}/{{ comment.id }}">🗑️ Удалить</a>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+              {% for reply in comments if reply.parent_id == comment.id %}
+                <div class="comment" id="comment-{{ reply.id }}" style="margin-left: 20px;">
+                  <p><strong>{{ reply.user }}</strong> ({{ reply.date }})<br>{{ get_user_group(reply.user) | safe }}</p>
+                  <p>{{ reply.content | format_bbcode | safe }}</p>
+                  {% if reply.edited %}
+                    <p class="edited">Отредактировано {% if reply.edit_datetime %}{{ reply.edit_datetime }}{% else %}неизвестно когда{% endif %}</p>
+                  {% endif %}
+                  <div class="comment-actions">
+                    {% if session.user or session.admin %}
+                      <div class="comment-settings">
+                        <button class="settings-btn" onclick="toggleDropdown(this)">⚙️</button>
+                        <div class="dropdown-menu">
+                          <button class="share-link-btn" onclick="copyCommentLink('comment-{{ reply.id }}')">Ссылка</button>
+                          {% if session.admin or (session.user and session.user == reply.user) %}
+                            <a href="/{{ 'admin/edit_comment' if session.admin else 'edit_comment' }}/{{ reply.id }}">Редактировать</a>
+                            <a href="/{{ 'admin/delete_comment' if session.admin else 'delete_comment' }}/{{ reply.id }}">Удалить</a>
+                          {% endif %}
+                        </div>
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              {% endfor %}
+              {% if session.user or session.admin %}
+                <form id="reply-form-{{ comment.id }}" style="display: none;" method="POST">
+                  <input type="hidden" name="parent_id" value="{{ comment.id }}">
+                  <div class="bbcode-toolbar">
+                    <button type="button" class="bbcode-btn" data-tag="B">Жирный</button>
+                    <button type="button" class="bbcode-btn" data-tag="S">Зачеркнутый</button>
+                    <button type="button" class="bbcode-btn" data-tag="SIZE=1">Маленький</button>
+                    <button type="button" class="bbcode-btn" data-tag="QUOTE">Цитата</button>
+                    <button type="button" class="bbcode-btn" data-tag="SPOILER">Спойлер</button>
+                    <button type="button" class="bbcode-btn" data-tag="OFFTOP">Оффтоп</button>
+                    <button type="button" class="bbcode-btn" data-tag="attachment">Вложение</button>
+                  </div>
+                  <textarea id="comment-textarea" name="comment" required></textarea>
+                  <button type="submit">Отправить</button>
+                </form>
+              {% endif %}
+            </div>
+          {% endif %}
+        {% endfor %}
+        {% if session.user or session.admin %}
+          {% if not news.closed or session.admin %}
+            <h3>Добавить комментарий</h3>
+            <form method="POST">
+              <div class="bbcode-toolbar">
+                <button type="button" class="bbcode-btn" data-tag="B">Жирный</button>
+                <button type="button" class="bbcode-btn" data-tag="S">Зачеркнутый</button>
+                <button type="button" class="bbcode-btn" data-tag="SIZE=1">Маленький</button>
+                <button type="button" class="bbcode-btn" data-tag="QUOTE">Цитата</button>
+                <button type="button" class="bbcode-btn" data-tag="SPOILER">Спойлер</button>
+                <button type="button" class="bbcode-btn" data-tag="OFFTOP">Оффтоп</button>
+              </div>
+              <textarea id="main-comment-textarea" name="comment" required></textarea>
+              <button type="submit">Отправить</button>
+            </form>
+          {% else %}
+            <p>Комментирование закрыто</p>
+          {% endif %}
+        {% else %}
+          <p><a href="/login">Войдите</a>, чтобы оставить комментарий</p>
+        {% endif %}
+      </section>
+    </section>
+  </main>
+  <footer>
+    <p>© 2025 TV Box Hub</p>
+  </footer>
+  <div id="modal" class="modal">
+    <span class="close-modal" onclick="closeModal()">×</span>
+    <img id="modal-image" class="modal-content" src="">
+  </div>
+  <script src="/static/script.js"></script>
+  <script>
+    function showReplyForm(commentId) {
+      const form = document.getElementById(`reply-form-${commentId}`);
+      form.style.display = 'block';
+    }
+
+    function insertUser(username) {
+      const textarea = document.querySelector('textarea[name="comment"]');
+      const startPos = textarea.selectionStart;
+      const endPos = textarea.selectionEnd;
+      textarea.value = textarea.value.substring(0, startPos) + `[@${username}] ` + textarea.value.substring(endPos);
+      textarea.focus();
+      textarea.setSelectionRange(startPos + username.length + 3, startPos + username.length + 3);
+    }
+
+    function copyCommentLink(commentId) {
+      const commentUrl = `${window.location.origin}${window.location.pathname}#${commentId}`;
+      navigator.clipboard.writeText(commentUrl).then(() => {
+        alert('Ссылка на комментарий скопирована в буфер обмена!');
+      }).catch(err => {
+        console.error('Ошибка копирования ссылки:', err);
+        alert('Не удалось скопировать ссылку. Попробуйте вручную.');
+      });
+    }
+
+    function toggleDropdown(button) {
+      const dropdown = button.nextElementSibling;
+      const isActive = dropdown.classList.contains('active');
+      // Закрываем все открытые меню
+      document.querySelectorAll('.dropdown-menu.active').forEach(menu => {
+        menu.classList.remove('active');
+      });
+      // Открываем/закрываем текущее меню
+      if (!isActive) {
+        dropdown.classList.add('active');
+      }
+    }
+
+    // Закрытие меню при клике вне его
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.comment-settings') && !e.target.closest('.news-actions')) {
+        document.querySelectorAll('.dropdown-menu.active').forEach(menu => {
+          menu.classList.remove('active');
+        });
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.location.hash) {
+        const targetComment = document.querySelector(window.location.hash);
+        if (targetComment) {
+          targetComment.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    });
+
+    function openModal(src) {
+      const modal = document.getElementById('modal');
+      const modalImage = document.getElementById('modal-image');
+      modalImage.src = src;
+      modal.style.display = 'flex';
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('modal');
+      modal.style.display = 'none';
+    }
+
+    document.getElementById('modal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeModal();
+      }
+    });
+  </script>
+</body>
+</html>

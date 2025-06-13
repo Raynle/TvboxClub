@@ -1,0 +1,17 @@
+[
+  {
+    "login": "user1",
+    "password": "pass1",
+    "group": "Пользователь"
+  },
+  {
+    "login": "admin",
+    "password": "adminpass",
+    "group": "Админ"
+  }
+  { 
+    "login": "testuser",
+    "password": "12345",
+    "group": "Пользователь"
+  } 
+]

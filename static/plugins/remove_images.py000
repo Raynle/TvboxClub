@@ -1,0 +1,109 @@
+from flask import request, jsonify, session
+
+def init(app):
+    # JavaScript для добавления крестиков
+    @app.route('/static/remove_images.js')
+    def remove_images_js():
+        return """
+        document.addEventListener('DOMContentLoaded', () => {
+            const images = document.querySelectorAll('img.news-image[src*="/static/uploads/"]');
+            console.log(`Найдено изображений: ${images.length}`);
+
+            images.forEach((img, index) => {
+                if (img.closest('.image-wrapper')?.querySelector('.remove-image-btn')) return;
+                console.log(`Обработка изображения ${index}: ${img.src}`);
+
+                const imagePath = 'uploads/' + img.src.split('/static/uploads/')[1];
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'remove-image-btn';
+                removeButton.innerHTML = '✖';
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'image-wrapper';
+                img.parentNode.insertBefore(wrapper, img);
+                wrapper.appendChild(img);
+                wrapper.appendChild(removeButton);
+
+                removeButton.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const slug = window.location.pathname.split('/').pop();
+                    console.log(`Удаляем: ${imagePath} для ${slug}`);
+
+                    const tempForm = document.createElement('form');
+                    tempForm.method = 'POST';
+                    tempForm.action = `/admin/edit/${slug}`;
+                    tempForm.style.display = 'none';
+
+                    const originalForm = document.querySelector('form[method="POST"]');
+                    if (originalForm) {
+                        const formData = new FormData(originalForm);
+                        for (const [key, value] of formData.entries()) {
+                            console.log(`Поле формы: ${key}=${value}`);
+                            const input = document.createElement('input');
+                            input.type = 'hidden';
+                            input.name = key;
+                            input.value = value;
+                            tempForm.appendChild(input);
+                        }
+
+                        const deleteInput = document.createElement('input');
+                        deleteInput.type = 'hidden';
+                        deleteInput.name = 'delete_images';
+                        deleteInput.value = imagePath;
+                        tempForm.appendChild(deleteInput);
+
+                        document.body.appendChild(tempForm);
+                        tempForm.submit();
+                    } else {
+                        console.error('Форма не найдена');
+                    }
+                });
+            });
+        });
+        """, 200, {'Content-Type': 'text/javascript'}
+
+    # CSS для стилизации крестика
+    @app.route('/static/remove_images.css')
+    def remove_images_css():
+        return """
+        .image-wrapper {
+            position: relative;
+            display: inline-block;
+            margin: 5px;
+        }
+        .remove-image-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(255, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 14px;
+            line-height: 20px;
+            cursor: pointer;
+            text-align: center;
+            padding: 0;
+        }
+        .remove-image-btn:hover {
+            background: rgba(255, 0, 0, 1);
+        }
+        """, 200, {'Content-Type': 'text/css'}
+
+    # Инъекция CSS и JS
+    @app.after_request
+    def inject_remove_images(response):
+        if response.content_type.startswith('text/html'):
+            html = response.get_data(as_text=True)
+            if '/admin/edit/' in request.path:
+                if '</head>' in html:
+                    css = '<link rel="stylesheet" href="/static/remove_images.css">'
+                    html = html.replace('</head>', f'{css}</head>')
+                if '</body>' in html:
+                    js = '<script src="/static/remove_images.js"></script>'
+                    html = html.replace('</body>', f'{js}</body>')
+            response.set_data(html)
+        return response

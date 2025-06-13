@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="{{ theme or 'dark' }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Управление пользователями - TV Box Hub</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <h1>Управление пользователями</h1>
+    <nav>
+      <ul>
+        <li><a href="/admin">Назад</a></li>
+      </ul>
+    </nav>
+  </header>
+  <main>
+    <section>
+      <h2>Пользователи</h2>
+      <ul>
+        {% for user in users %}
+          <li>
+            {{ user.login }} (Группа: {{ user.group if user.group else 'Пользователь' }})
+            <form method="POST" style="display: inline;">
+              <input type="hidden" name="user_login" value="{{ user.login }}">
+              <select name="group_name">
+                {% for group in groups %}
+                  <option value="{{ group.name }}" {% if user.group == group.name %}selected{% endif %}>{{ group.name }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit">Изменить</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  </main>
+  <footer>
+    <p>© 2025 TV Box Hub</p>
+  </footer>
+  <script src="/static/script.js"></script>
+</body>
+</html>
